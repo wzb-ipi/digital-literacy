@@ -104,6 +104,17 @@ theme_tiktok <- function() {
 scale_color_tiktok <- function() {
   scale_color_discrete()
 }
+
+# Run feols by group and return tidied coefficients with metadata
+run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
+  feols(
+    as.formula(paste(outcome_var, "~ workshop_Treatment | video")),
+    data = df,
+    cluster = ~ID
+  ) |>
+    tidy(conf.int = TRUE) |>
+    mutate(!!!extra_cols)
+}
 ```
 
 
@@ -160,15 +171,17 @@ for (D in c("wave_9", "wave_10")) {
 
   for (OG in names(l_outcomegroups)) {
     df_f_I <- lapply(l_outcomegroups[[OG]], function(Y)
-      lapply(unique(df$strategy_2), function(S)
-        feols(
-          as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-          data = df |> filter(strategy_2 == S),
-          cluster = ~ID
-        ) |>
-          tidy(conf.int = TRUE) |>
-          mutate(outcome = Y, strategy = S)
-      ) |> bind_rows()) |> bind_rows() |>
+      lapply(unique(df$strategy_2), function(S) {
+        df_sub <- df |> filter(strategy_2 == S)
+        run_feols_tidy(
+          df = df_sub,
+          outcome_var = v_outcomes[Y],
+          extra_cols = list(outcome = Y, strategy = S)
+        )
+      }) |>
+        bind_rows()
+    ) |>
+      bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
 
     wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
@@ -206,15 +219,19 @@ for (D in c("wave_9", "wave_10")) {
   for (OG in names(l_outcomegroups)) {
     df_f_IIa <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
-        lapply(ps$parties, function(P)
-          feols(
-            as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-            data = df |> filter(strategy_2 == S, party == P),
-            cluster = ~ID
-          ) |>
-            tidy(conf.int = TRUE) |>
-            mutate(outcome = Y, strategy = S, party = P)
-        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+        lapply(ps$parties, function(P) {
+          df_sub <- df |> filter(strategy_2 == S, party == P)
+          run_feols_tidy(
+            df = df_sub,
+            outcome_var = v_outcomes[Y],
+            extra_cols = list(outcome = Y, strategy = S, party = P)
+          )
+        }) |>
+          bind_rows()
+      ) |>
+        bind_rows()
+    ) |>
+      bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
 
     wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
@@ -251,16 +268,20 @@ for (D in c("wave_9", "wave_10")) {
   for (OG in names(l_outcomegroups)) {
     df_f_IIc <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
-        lapply(names(l_partisanship), function(PS)
-          lapply(ps$parties, function(P)
-            feols(
-              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-              data = df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]]),
-              cluster = ~ID
-            ) |>
-              tidy(conf.int = TRUE) |>
-              mutate(outcome = Y, strategy = S, partisan = PS)
-          ) |> bind_rows()) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+        lapply(names(l_partisanship), function(PS) {
+          df_sub <- df |>
+            filter(strategy_2 == S, partisan %in% l_partisanship[[PS]])
+          run_feols_tidy(
+            df = df_sub,
+            outcome_var = v_outcomes[Y],
+            extra_cols = list(outcome = Y, strategy = S, partisan = PS)
+          )
+        }) |>
+          bind_rows()
+      ) |>
+        bind_rows()
+    ) |>
+      bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
 
     wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
@@ -305,14 +326,18 @@ for (D in c("wave_9", "wave_10")) {
   for (OG in names(l_outcomegroups)) {
     df_f_IIb <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(c("anger", "fear", "superiority"), function(S)
-        feols(
-          as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-          data = df |> filter(strategy == S),
-          cluster = ~ID
-        ) |>
-          tidy(conf.int = TRUE) |>
-          mutate(outcome = Y, strategy = S)
-      ) |> bind_rows()) |> bind_rows() |>
+        {
+          df_sub <- df |> filter(strategy == S)
+          run_feols_tidy(
+            df = df_sub,
+            outcome_var = v_outcomes[Y],
+            extra_cols = list(outcome = Y, strategy = S)
+          )
+        }
+      ) |>
+        bind_rows()
+    ) |>
+      bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
 
     wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
@@ -358,13 +383,16 @@ for (D in c("wave_9", "wave_10")) {
                           (NO ESTIMATION POSSIBLE: constant/NA DV)"))
               return(NULL)
             }
-            feols(
-              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-              data = df_temp,
-              cluster = ~ID
-            ) |>
-              tidy(conf.int = TRUE) |>
-              mutate(outcome = Y, strategy = S, partisan = as.character(PS), party = P)
+            run_feols_tidy(
+              df = df_temp,
+              outcome_var = v_outcomes[Y],
+              extra_cols = list(
+                outcome = Y,
+                strategy = S,
+                partisan = as.character(PS),
+                party = P
+              )
+            )
           })
         ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
@@ -427,13 +455,16 @@ for (D in c("wave_9", "wave_10")) {
               print(paste("skipping ", paste(P, PS, S, Y, sep = "/"), " (NO ESTIMATION POSSIBLE: constant/NA DV)"))
               return(NULL)
             }
-            feols(
-              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
-              data = df_temp,
-              cluster = ~ID
-            ) |>
-              tidy(conf.int = TRUE) |>
-              mutate(outcome = Y, strategy = S, partisan = as.character(PS), party = P)
+            run_feols_tidy(
+              df = df_temp,
+              outcome_var = v_outcomes[Y],
+              extra_cols = list(
+                outcome = Y,
+                strategy = S,
+                partisan = as.character(PS),
+                party = P
+              )
+            )
           })
         ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
       mutate(outcome = factor(outcome, levels = unique(outcome)))
