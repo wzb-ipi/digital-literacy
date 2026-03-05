@@ -18,6 +18,8 @@ execute:
 # Setup
 
 ```{r}
+#| label: analysis-setup-packages
+
 # Load packages
 pacman::p_load(fixest, tidyverse, DeclareDesign, haven, knitr, broom, ggh4x, ellipse, ggrepel)
 
@@ -27,6 +29,7 @@ pacman::p_load(fixest, tidyverse, DeclareDesign, haven, knitr, broom, ggh4x, ell
 ## Configuration
 
 ```{r}
+#| label: analysis-configuration
 
 setFixest_notes(FALSE)  # Suppress fixest NOTE messages
 filter_10 <- TRUE
@@ -76,6 +79,7 @@ ps <- tibble(
 ## Helper functions
 
 ```{r}
+#| label: analysis-helper-functions
 # Plot helpers
 
 gg_coefplot <- function(data, aes) {
@@ -105,7 +109,8 @@ scale_color_tiktok <- function() {
 
 # Data 
 
-```{r integrity}
+```{r}
+#| label: integrity
 
 datasets <- list(
   wave_9  = read_rds("data/wave_9.rds"),
@@ -149,6 +154,7 @@ individual_df <-
 Treatment effects by high-level video content types and displays/saves coefficient plots per outcome.
 
 ```{r}
+#| label: analysis-main-results
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -173,7 +179,15 @@ for (D in c("wave_9", "wave_10")) {
       labs(title = wave_label)
 
     print(gg_f_I)
-    ggsave(filename = paste0(fig_dir, "/f_I", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_I, width = 7, height = 3, device = cairo_pdf)
+    ggsave(
+      filename = paste0(
+        fig_dir, "/f_I", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
+      ),
+      plot = gg_f_I,
+      width = 7,
+      height = 3,
+      device = cairo_pdf
+    )
   }
 }
 
@@ -185,6 +199,7 @@ for (D in c("wave_9", "wave_10")) {
 Treatment effects within each party for political content types, per outcome.
 
 ```{r}
+#| label: analysis-conditional-on-sender
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -210,7 +225,15 @@ for (D in c("wave_9", "wave_10")) {
       labs(title = wave_label)
 
     print(gg_f_IIa)
-    ggsave(filename = paste0(fig_dir, "/f_IIa", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIa, width = 7, height = 6, device = cairo_pdf)
+    ggsave(
+      filename = paste0(
+        fig_dir, "/f_IIa", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
+      ),
+      plot = gg_f_IIa,
+      width = 7,
+      height = 6,
+      device = cairo_pdf
+    )
   }
 }
 ```
@@ -221,6 +244,7 @@ for (D in c("wave_9", "wave_10")) {
 This section estimates treatment effects by partisanship grouping (supporter yes/no/all) within political content types, per outcome.
 
 ```{r}
+#| label: analysis-by-partisanship
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -274,6 +298,7 @@ This section estimates treatment effects by specific emotional strategies (anger
 * saved as f_IIb files 
 
 ```{r}
+#| label: analysis-by-strategy
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -298,7 +323,15 @@ for (D in c("wave_9", "wave_10")) {
       labs(title = wave_label)
 
     print(gg_f_IIb)
-    ggsave(filename = paste0(fig_dir, "/f_IIb", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIb, width = 7, height = 3, device = cairo_pdf)
+    ggsave(
+      filename = paste0(
+        fig_dir, "/f_IIb", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
+      ),
+      plot = gg_f_IIb,
+      width = 7,
+      height = 3,
+      device = cairo_pdf
+    )
   }
 }
 ```
@@ -309,6 +342,7 @@ for (D in c("wave_9", "wave_10")) {
 This section estimates treatment effects by party and partisanship, with nested facet labels.
 
 ```{r}
+#| label: analysis-f_IIc3-partisanship-party
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -359,7 +393,15 @@ for (D in c("wave_9", "wave_10")) {
       )
 
     print(gg_f_IIc3)
-    ggsave(filename = paste0(fig_dir, "/f_IIc3", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIc3, width = 7, height = 11, device = cairo_pdf)
+    ggsave(
+      filename = paste0(
+        fig_dir, "/f_IIc3", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
+      ),
+      plot = gg_f_IIc3,
+      width = 7,
+      height = 11,
+      device = cairo_pdf
+    )
   }
 }
 ```
@@ -370,6 +412,7 @@ for (D in c("wave_9", "wave_10")) {
 This alternate visualization repeats f_IIc3 but shows only supporter yes/no levels.
 
 ```{r}
+#| label: analysis-f_IIc3b-partisanship-party-alt
 for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
@@ -418,7 +461,15 @@ for (D in c("wave_9", "wave_10")) {
       )
 
     print(gg_f_IIc3b)
-    ggsave(filename = paste0(fig_dir, "/f_IIc3b", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIc3b, width = 7, height = 8, device = cairo_pdf)
+    ggsave(
+      filename = paste0(
+        fig_dir, "/f_IIc3b", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
+      ),
+      plot = gg_f_IIc3b,
+      width = 7,
+      height = 8,
+      device = cairo_pdf
+    )
   }
 }
 ```
@@ -431,7 +482,10 @@ for (D in c("wave_9", "wave_10")) {
 
 ## Maintained support?
 
-```{r, results = 'asis', include = FALSE}
+```{r}
+#| label: analysis-maintained-support
+#| results: asis
+#| include: false
 party_support <- list(
   lm_robust(afd10 ~ afd9 * Z9, data = individual_df),
   lm_robust(cdu10 ~ cdu9 * Z9, data = individual_df),
@@ -443,6 +497,7 @@ party_support |> texreg::htmlreg()
 ```
 
 ```{r}
+#| label: analysis-party-support-arrows
 # Calculate mean party support by treatment group for arrow plot
 arrow_data <- individual_df |> 
   group_by(Z9) |> 
@@ -511,7 +566,9 @@ p_arrows <- ggplot(arrow_long, aes(x = w9, y = w10)) +
 print(p_arrows)
 ```
 
-```{r, eval = FALSE}
+```{r}
+#| label: analysis-did-plot-example
+#| eval: false
 # Create difference-in-differences plot
 # Calculate change from W9 to W10 for each party and treatment group
 did_data <- arrow_long |> 
@@ -551,6 +608,7 @@ print(p_did)
 ```
 
 ```{r}
+#| label: analysis-did-ci-plot
 # Create DiD plot with confidence intervals using simple regressions
 # Fit simple DiD regressions for each party (change in support)
 did_models <- map_dfr(c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw"), function(party) {
@@ -626,6 +684,7 @@ print(p_ci)
 Correlation structure among outcomes by treatment and wave. Ellipses indicate sign and strength; red/blue color encodes sign.
 
 ```{r}
+#| label: analysis-outcome-correlations
 # Build a long data frame of correlations by wave and treatment
 build_cor_df <- function(df, wave_label) {
   groups <- list(
@@ -712,5 +771,14 @@ p_cor <- ggplot() +
   facet_grid(rows = vars(treat), cols = vars(wave))
 
 print(p_cor)
-ggsave(filename = file.path(fig_dir, paste0("correlation_ellipses.pdf")), plot = p_cor, width = 9, height = 7, device = cairo_pdf)
+ggsave(
+  filename = file.path(
+    fig_dir,
+    paste0("correlation_ellipses.pdf")
+  ),
+  plot = p_cor,
+  width = 9,
+  height = 7,
+  device = cairo_pdf
+)
 ```

@@ -17,6 +17,8 @@ execute:
 # Setup
 
 ```{r}
+#| label: data-setup-packages
+
 # Load packages
 pacman::p_load(tidyverse, haven, knitr)
 ```
@@ -24,6 +26,8 @@ pacman::p_load(tidyverse, haven, knitr)
 # Paths and labels
 
 ```{r}
+#| label: data-paths-and-labels
+
 # This file requires access to full data
 data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
 
@@ -48,6 +52,7 @@ ps <- tibble(
 
 
 ```{r}
+#| label: data-helper-functions
 
 prepare_data <- function(D) {
   df <- read_dta(v_datapaths[D]) |>
@@ -98,7 +103,8 @@ prepare_data <- function(D) {
 
 This prepares the short-term (wave_9) and long-term (wave_10) datasets a single time.
 
-```{r dataprep}
+```{r}
+#| label: dataprep
 prepare_data("wave_9") |> write_rds("data/wave_9.rds")
 prepare_data("wave_10") |> write_rds("data/wave_10.rds")
 
@@ -110,6 +116,7 @@ prepare_data("wave_10") |> write_rds("data/wave_10.rds")
 400 videos 
 
 ```{r}
+#| label: data-retain-video-descriptions
 
 labels_df <- 
   bind_rows(
