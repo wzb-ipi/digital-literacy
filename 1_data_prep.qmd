@@ -1,0 +1,122 @@
+---
+title: "Digital literacy: Data preparation"
+format:
+  html:
+    embed-resources: true
+    number-sections: true
+    code-fold: true
+    toc: true
+execute:
+  echo: true
+  warning: true
+  message: false
+---
+
+**Task**: Deidentifies and saves data for replication
+
+# Setup
+
+```{r}
+# Load packages
+pacman::p_load(tidyverse, haven, knitr)
+```
+
+# Paths and labels
+
+```{r}
+# This file requires access to full data
+data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
+
+pref_var <- "party_preference_"   
+
+v_datapaths <- c(
+  "wave_9"  = paste0(data_path, "wave_9/Full-Launch/Video_reshaped.dta"),
+  "wave_10" = paste0(data_path, "wave_10/Video_reshaped.dta")
+)
+
+# Edit figure labels here
+strategies <- 
+  c("political\n(emotional)", "political\n(neutral)")
+
+ps <- tibble(
+  parties = c("AfD", "BSW", "CDU/CSU", "FDP", "Grüne", "Linke", "SPD"),
+  party_stub = c("afd", "bsw", "cdu", "fdp", "gruene", "linke", "spd")
+)
+```
+
+# Helper functions
+
+
+```{r}
+
+prepare_data <- function(D) {
+  df <- read_dta(v_datapaths[D]) |>
+    # Keeping ID which is used for linking periods but no PII
+    # Dropping long text fields
+    select(-any_of(c("USER", "record", 
+                     "videoCurrentTimep1r", "video_desc"))) |>
+    filter(SwitchedToRandom == 1) |>
+    filter(!duration_video_ %in% c(-9, NA)) |>
+    mutate(
+      workshop_Treatment = ifelse(workshop_Treatment == 2, 0, as.numeric(workshop_Treatment)),
+      strategy_2 = case_when(
+        content == "entertainment" ~ "entertainment",
+        strategy == "neutral" ~ strategies[2],
+        strategy %in% c("anger", "fear", "superiority") ~ strategies[1]
+      ),
+      party = party |> str_replace("_", "/"),
+      partisan = NA
+    ) |>
+    group_by(ID) |>
+    mutate(number_video = n()) |>
+    ungroup() |>
+    filter(number_video >= 2)
+
+  # Construct partisanship variable
+  for (p in 1:nrow(ps)) {
+    df <- df |>
+      mutate(
+        partisan = ifelse(
+          party == ps$parties[p],
+          case_when(
+            # Strong / weak self reported identification
+            !!sym(paste0(pref_var, ps$party_stub[p])) == 1 ~ 1,
+            TRUE ~ 0
+          ),
+          partisan
+        )
+      )
+  }
+
+  df
+}
+
+```
+
+
+# Prepare and export data 
+
+This prepares the short-term (wave_9) and long-term (wave_10) datasets a single time.
+
+```{r dataprep}
+prepare_data("wave_9") |> write_rds("data/wave_9.rds")
+prepare_data("wave_10") |> write_rds("data/wave_10.rds")
+
+```
+
+
+# Retain video descriptions
+
+400 videos 
+
+```{r}
+
+labels_df <- 
+  bind_rows(
+    read_dta(v_datapaths[1]) |> select(tiktok_id, video_desc) |> distinct(),
+    read_dta(v_datapaths[2]) |> select(tiktok_id, video_desc) |> distinct()) |>
+  distinct()
+
+labels_df |> head() |> kable()
+
+```

@@ -1,0 +1,716 @@
+---
+title: "Digital literacy reduces susceptibility to populist content on social media"
+subtitle: Replication data and code
+author: Kristina Aleksandrovna Pedersen, Ferdinand Geissler, Felix Hartmann, Johannes Giesecke, Macartan Humphreys, Heike Klüver
+format:
+  html:
+    number-sections: true
+    embed-resources: true
+    code-fold: true
+    toc: true
+execute:
+  echo: true
+  warning: true
+  message: false
+---
+
+
+# Setup
+
+```{r}
+# Load packages
+pacman::p_load(fixest, tidyverse, DeclareDesign, haven, knitr, broom, ggh4x, ellipse, ggrepel)
+
+```
+
+
+## Configuration
+
+```{r}
+
+setFixest_notes(FALSE)  # Suppress fixest NOTE messages
+filter_10 <- TRUE
+pref_var <- "party_preference_"
+
+# Edit figure labels here
+strategies <- 
+  c("political\n(emotional)", "political\n(neutral)")
+
+# Unified output directories
+fig_dir <- "figs"
+
+# Filename suffix by wave
+wave_suffix <- c(
+  wave_9 = "_shortterm",
+  wave_10 = "_longterm"
+)
+
+# Outcomes and groups
+v_outcomes <- c(
+  "Like" = "videoLikep1r",
+  "Share" = "videoSharep1r",
+  "Bookmark" = "videoBookmarkp1r",
+  "Report" = "videoCommentTickedp1r",
+  "Watch Time" = "watch_percentage_",
+  "Skip" = "skipped_video_"
+)
+
+l_outcomegroups <- list(
+  main = c("Like", "Report", "Share", "Bookmark"),
+  "_other" = c("Skip", "Watch Time")
+)
+
+l_partisanship <- list(
+  "Supporter: Yes" = 1,
+  "Supporter: No" = 0,
+  "All" = c(0, 1)
+)
+
+ps <- tibble(
+  parties = c("AfD", "BSW", "CDU/CSU", "FDP", "Grüne", "Linke", "SPD"),
+  party_stub = c("afd", "bsw", "cdu", "fdp", "gruene", "linke", "spd")
+)
+```
+
+
+## Helper functions
+
+```{r}
+# Plot helpers
+
+gg_coefplot <- function(data, aes) {
+  ggplot(data, aes) +
+    geom_vline(xintercept = 0, linetype = "dashed") +
+    geom_point() +
+    geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+    theme_tiktok() +
+    scale_color_tiktok()
+}
+
+# Theme and palette
+
+theme_tiktok <- function() {
+  theme_bw() +
+    theme(
+      legend.position = "none",
+      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    )
+}
+
+scale_color_tiktok <- function() {
+  scale_color_discrete()
+}
+```
+
+
+# Data 
+
+```{r integrity}
+
+datasets <- list(
+  wave_9  = read_rds("data/wave_9.rds"),
+  wave_10 = read_rds("data/wave_10.rds")
+)
+
+individual_df <- 
+  left_join(
+  datasets$wave_9 |> group_by(ID) |> 
+  summarize(Z9 = mean(workshop_Treatment, na.rm = TRUE),
+            afd9 = mean(party_preference_afd, na.rm = TRUE),
+            cdu9 = mean(party_preference_cdu, na.rm = TRUE),
+            linke9 = mean(party_preference_linke, na.rm = TRUE),
+            spd9 = mean(party_preference_spd, na.rm = TRUE),
+            gruene9 = mean(party_preference_gruene, na.rm = TRUE),
+            fdp9 = mean(party_preference_fdp, na.rm = TRUE),
+            bsw9 = mean(party_preference_bsw, na.rm = TRUE),
+            liker9 = mean(videoLikep1r, na.rm = TRUE),
+            n9 = n(),
+            tiktok_user = mean(TikTok_User)),
+  
+  datasets$wave_10 |> group_by(ID) |> 
+  summarize(Z10 = mean(workshop_Treatment, na.rm = TRUE),
+            afd10 = mean(party_preference_afd, na.rm = TRUE),
+            linke10 = mean(party_preference_linke, na.rm = TRUE),
+            cdu10 = mean(party_preference_cdu, na.rm = TRUE),
+            spd10 = mean(party_preference_spd, na.rm = TRUE),
+            gruene10 = mean(party_preference_gruene, na.rm = TRUE),
+            fdp10 = mean(party_preference_fdp, na.rm = TRUE),
+            bsw10 = mean(party_preference_bsw, na.rm = TRUE),
+            liker10 = mean(videoLikep1r, na.rm = TRUE),
+            n10 = n())
+  ) |> 
+  mutate(missing = is.na(Z10))  
+```
+
+
+
+# Main Results (Figure 1, 4, 5, and associated appendix figures)
+
+Treatment effects by high-level video content types and displays/saves coefficient plots per outcome.
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_I <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(unique(df$strategy_2), function(S)
+        feols(
+          as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+          data = df |> filter(strategy_2 == S),
+          cluster = ~ID
+        ) |>
+          tidy(conf.int = TRUE) |>
+          mutate(outcome = Y, strategy = S)
+      ) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_I <- df_f_I |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_grid(cols = vars(outcome)) +
+      labs(title = wave_label)
+
+    print(gg_f_I)
+    ggsave(filename = paste0(fig_dir, "/f_I", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_I, width = 7, height = 3, device = cairo_pdf)
+  }
+}
+
+```
+
+
+# Conditional on sender (Figure 2 and related appendix figure)
+
+Treatment effects within each party for political content types, per outcome.
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_IIa <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(strategies, function(S)
+        lapply(ps$parties, function(P)
+          feols(
+            as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+            data = df |> filter(strategy_2 == S, party == P),
+            cluster = ~ID
+          ) |>
+            tidy(conf.int = TRUE) |>
+            mutate(outcome = Y, strategy = S, party = P)
+        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_IIa <- df_f_IIa |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_grid(cols = vars(outcome), rows = vars(party)) +
+      labs(title = wave_label)
+
+    print(gg_f_IIa)
+    ggsave(filename = paste0(fig_dir, "/f_IIa", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIa, width = 7, height = 6, device = cairo_pdf)
+  }
+}
+```
+
+
+# By partisanship (Figure 3 and related appendix figures)
+
+This section estimates treatment effects by partisanship grouping (supporter yes/no/all) within political content types, per outcome.
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_IIc <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(strategies, function(S)
+        lapply(names(l_partisanship), function(PS)
+          lapply(ps$parties, function(P)
+            feols(
+              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+              data = df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]]),
+              cluster = ~ID
+            ) |>
+              tidy(conf.int = TRUE) |>
+              mutate(outcome = Y, strategy = S, partisan = PS)
+          ) |> bind_rows()) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_IIc <- df_f_IIc |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_grid(cols = vars(outcome), rows = vars(partisan)) +
+      labs(title = wave_label)
+
+    print(gg_f_IIc)
+    ggsave(filename = paste0(fig_dir, "/f_IIc", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), 
+           plot = gg_f_IIc, width = 7, height = 6, 
+           device = cairo_pdf)
+  }
+}
+```
+
+
+
+
+# Other appendix items
+
+## A Descriptives
+
+## C Coding of TikTok videos
+
+## G Engagement with platform
+
+## H Further analysis
+
+### By strategy
+
+This section estimates treatment effects by specific emotional strategies (anger, fear, superiority), per outcome.
+
+* saved as f_IIb files 
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_IIb <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(c("anger", "fear", "superiority"), function(S)
+        feols(
+          as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+          data = df |> filter(strategy == S),
+          cluster = ~ID
+        ) |>
+          tidy(conf.int = TRUE) |>
+          mutate(outcome = Y, strategy = S)
+      ) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_IIb <- df_f_IIb |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_grid(cols = vars(outcome)) +
+      labs(title = wave_label)
+
+    print(gg_f_IIb)
+    ggsave(filename = paste0(fig_dir, "/f_IIb", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIb, width = 7, height = 3, device = cairo_pdf)
+  }
+}
+```
+
+
+### f_IIc3: by partisanship and party
+
+This section estimates treatment effects by party and partisanship, with nested facet labels.
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_IIc3 <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(strategies, function(S)
+        lapply(names(l_partisanship), function(PS)
+          lapply(ps$parties, function(P) {
+            df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
+            y <- df_temp[[v_outcomes[Y]]]
+            if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
+              print(paste("skipping ", paste(P, PS, S, Y, sep = "/"), " 
+                          (NO ESTIMATION POSSIBLE: constant/NA DV)"))
+              return(NULL)
+            }
+            feols(
+              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+              data = df_temp,
+              cluster = ~ID
+            ) |>
+              tidy(conf.int = TRUE) |>
+              mutate(outcome = Y, strategy = S, partisan = as.character(PS), party = P)
+          })
+        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_IIc3 <- df_f_IIc3 |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_nested(
+        rows = vars(party, partisan),
+        cols = vars(outcome),
+        strip = strip_nested(
+          text_y = list(
+            element_text(angle = 90),
+            element_text(angle = 0, hjust = 0)
+          ),
+          by_layer_y = TRUE
+        )
+      ) +
+      labs(title = wave_label) +
+      theme(
+        panel.spacing.y = unit(0, "pt"),
+        strip.background.y = element_rect(fill = "grey90", color = "black"),
+        legend.position = "none",
+        axis.text = element_text(size = 6.5)
+      )
+
+    print(gg_f_IIc3)
+    ggsave(filename = paste0(fig_dir, "/f_IIc3", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIc3, width = 7, height = 11, device = cairo_pdf)
+  }
+}
+```
+
+
+### f_IIc3b: by partisanship and party (alternate)
+
+This alternate visualization repeats f_IIc3 but shows only supporter yes/no levels.
+
+```{r}
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    df_f_IIc3b <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(strategies, function(S)
+        lapply(names(l_partisanship[1:2]), function(PS)
+          lapply(ps$parties, function(P) {
+            df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
+            y <- df_temp[[v_outcomes[Y]]]
+            if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
+              print(paste("skipping ", paste(P, PS, S, Y, sep = "/"), " (NO ESTIMATION POSSIBLE: constant/NA DV)"))
+              return(NULL)
+            }
+            feols(
+              as.formula(paste(v_outcomes[Y], "~ workshop_Treatment | video")),
+              data = df_temp,
+              cluster = ~ID
+            ) |>
+              tidy(conf.int = TRUE) |>
+              mutate(outcome = Y, strategy = S, partisan = as.character(PS), party = P)
+          })
+        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+      mutate(outcome = factor(outcome, levels = unique(outcome)))
+
+    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
+    
+    gg_f_IIc3b <- df_f_IIc3b |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_nested(
+        rows = vars(party, partisan),
+        cols = vars(outcome),
+        strip = strip_nested(
+          text_y = list(
+            element_text(angle = 90),
+            element_text(angle = 0, hjust = 0)
+          ),
+          by_layer_y = TRUE
+        )
+      ) +
+      labs(title = wave_label) +
+      theme(
+        panel.spacing.y = unit(0, "pt"),
+        strip.background.y = element_rect(fill = "grey90", color = "black"),
+        legend.position = "none"
+      )
+
+    print(gg_f_IIc3b)
+    ggsave(filename = paste0(fig_dir, "/f_IIc3b", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), plot = gg_f_IIc3b, width = 7, height = 8, device = cairo_pdf)
+  }
+}
+```
+
+
+
+## Attrition analysis
+
+## Downstream effects on AfD support 
+
+## Maintained support?
+
+```{r, results = 'asis', include = FALSE}
+party_support <- list(
+  lm_robust(afd10 ~ afd9 * Z9, data = individual_df),
+  lm_robust(cdu10 ~ cdu9 * Z9, data = individual_df),
+  lm_robust(linke10 ~ linke9 * Z9, data = individual_df)
+  )
+
+party_support |> texreg::htmlreg()
+
+```
+
+```{r}
+# Calculate mean party support by treatment group for arrow plot
+arrow_data <- individual_df |> 
+  group_by(Z9) |> 
+  summarize(
+    afd_w9 = mean(afd9, na.rm = TRUE),
+    afd_w10 = mean(afd10, na.rm = TRUE),
+    cdu_w9 = mean(cdu9, na.rm = TRUE), 
+    cdu_w10 = mean(cdu10, na.rm = TRUE),
+    linke_w9 = mean(linke9, na.rm = TRUE),
+    linke_w10 = mean(linke10, na.rm = TRUE),
+    spd_w9 = mean(spd9, na.rm = TRUE),
+    spd_w10 = mean(spd10, na.rm = TRUE),
+    gruene_w9 = mean(gruene9, na.rm = TRUE),
+    gruene_w10 = mean(gruene10, na.rm = TRUE),
+    fdp_w9 = mean(fdp9, na.rm = TRUE),
+    fdp_w10 = mean(fdp10, na.rm = TRUE),
+    bsw_w9 = mean(bsw9, na.rm = TRUE),
+    bsw_w10 = mean(bsw10, na.rm = TRUE)
+  ) |> 
+  mutate(treatment = ifelse(Z9 == 1, "Treatment", "Control"))
+
+# Reshape to long format for plotting
+arrow_long <- arrow_data |> 
+  select(treatment, afd_w9, afd_w10, cdu_w9, cdu_w10, linke_w9, linke_w10, 
+         spd_w9, spd_w10, gruene_w9, gruene_w10, fdp_w9, fdp_w10, bsw_w9, bsw_w10) |> 
+  pivot_longer(cols = -treatment, names_to = "party_wave", values_to = "support") |> 
+  separate(party_wave, into = c("party", "wave"), sep = "_w") |> 
+  pivot_wider(names_from = wave, values_from = support, names_prefix = "w") |> 
+  mutate(party = case_when(
+    party == "afd" ~ "AfD",
+    party == "cdu" ~ "CDU/CSU", 
+    party == "linke" ~ "Linke",
+    party == "spd" ~ "SPD",
+    party == "gruene" ~ "Grüne",
+    party == "fdp" ~ "FDP",
+    party == "bsw" ~ "BSW"
+  ))
+
+# Create arrow plot
+p_arrows <- ggplot(arrow_long, aes(x = w9, y = w10)) +
+  geom_point(aes(color = treatment), size = 3, alpha = 0.7) +
+  geom_segment(
+    data = arrow_long |> 
+      pivot_wider(names_from = treatment, values_from = c(w9, w10)) |> 
+      filter(!is.na(w9_Control) & !is.na(w9_Treatment)),
+    aes(x = w9_Control, y = w10_Control, 
+        xend = w9_Treatment, yend = w10_Treatment),
+    arrow = arrow(length = unit(0.2, "cm")), 
+    color = "black", size = 1
+  ) +
+  geom_text_repel(
+    aes(label = ifelse(treatment == "Control", party, "")),
+    size = 3, force = 2, color = "black"
+  ) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", alpha = 0.5) +
+  labs(
+    x = "Party Support in Wave 9", 
+    y = "Party Support in Wave 10",
+    title = "Changes in Party Support: Control vs Treatment",
+    subtitle = "Arrows show movement from Control to Treatment group means"
+  ) +
+  scale_color_manual(values = c("Control" = "#F8766D", "Treatment" = "#00BFC4")) +
+  theme_bw() +
+  theme(legend.title = element_blank())
+
+print(p_arrows)
+```
+
+```{r, eval = FALSE}
+# Create difference-in-differences plot
+# Calculate change from W9 to W10 for each party and treatment group
+did_data <- arrow_long |> 
+  mutate(change = w10 - w9) |> 
+  select(party, treatment, change) |> 
+  pivot_wider(names_from = treatment, values_from = change) |> 
+  mutate(
+    did_effect = Treatment - Control,  # Difference-in-difference
+    party_label = party
+  )
+
+# Create the DiD plot
+p_did <- ggplot(did_data, aes(x = reorder(party, did_effect), y = did_effect)) +
+  geom_col(aes(fill = ifelse(did_effect > 0, "Positive", "Negative")), 
+           alpha = 0.7, width = 0.6) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_text(aes(label = sprintf("%.3f", did_effect)), 
+            hjust = ifelse(did_data$did_effect > 0, -0.1, 1.1), 
+            size = 3.5) +
+  scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#DC143C")) +
+  labs(
+    x = "Party",
+    y = "Difference-in-Difference Effect",
+    title = "Treatment Effects on Party Support Changes",
+    subtitle = "DiD = (Treatment W9→W10 change) - (Control W9→W10 change)",
+    caption = "Positive values indicate treatment increased support change relative to control"
+  ) +
+  theme_bw() +
+  theme(
+    legend.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.subtitle = element_text(size = 9)
+  ) +
+  coord_flip()
+
+print(p_did)
+```
+
+```{r}
+# Create DiD plot with confidence intervals using simple regressions
+# Fit simple DiD regressions for each party (change in support)
+did_models <- map_dfr(c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw"), function(party) {
+  
+  # Create party-specific data with change in support
+  party_data <- individual_df |> 
+    select(ID, Z9, 
+           w9 = paste0(party, "9"), 
+           w10 = paste0(party, "10")) |> 
+    filter(!is.na(w9) & !is.na(w10)) |> 
+    mutate(w9_demean = w9 - mean(w9))  # Change in support from W9 to W10
+  
+  # Fit simple DiD model: change ~ treatment
+  model <- lm(w10 ~ Z9*w9_demean, data = party_data)
+  
+  # Extract treatment coefficient (DiD effect)
+  coef_summary <- summary(model)$coefficients
+  
+  tibble(
+    party = case_when(
+      party == "afd" ~ "AfD",
+      party == "cdu" ~ "CDU/CSU",
+      party == "linke" ~ "Linke", 
+      party == "spd" ~ "SPD",
+      party == "gruene" ~ "Grüne",
+      party == "fdp" ~ "FDP",
+      party == "bsw" ~ "BSW"
+    ),
+    did_effect = coef_summary["Z9", "Estimate"],
+    se = coef_summary["Z9", "Std. Error"],
+    conf_low = did_effect - 1.96 * se,
+    conf_high = did_effect + 1.96 * se,
+    p_value = coef_summary["Z9", "Pr(>|t|)"]
+  )
+})
+
+# Create  plot with confidence intervals
+p_ci <- ggplot(did_models |> filter(!is.na(did_effect)), 
+                   aes(x = reorder(party, did_effect), y = did_effect)) +
+  geom_col(aes(fill = ifelse(did_effect > 0, "Positive", "Negative")), 
+           alpha = 0.7, width = 0.6) +
+  geom_errorbar(aes(ymin = conf_low, ymax = conf_high), 
+                width = 0.2, color = "black", size = 0.8) +
+  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_text(aes(label = sprintf("%.3f\n(p=%.3f)", did_effect, p_value)), 
+            hjust = ifelse(did_models$did_effect > 0, -0.1, 1.1), 
+            size = 2.8) +
+  scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#DC143C")) +
+  labs(
+    x = "Party",
+    y = "Change in support",
+    title = "Treatment Effects (with 95% CI)",
+    subtitle = "Effect of treatment on long term support, conditional on initial support",
+    caption = "Error bars show 95% confidence intervals."
+  ) +
+  theme_bw() +
+  theme(
+    legend.title = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.subtitle = element_text(size = 9),
+    plot.caption = element_text(size = 8)
+  ) +
+  coord_flip()
+
+print(p_ci)
+
+```
+
+## Changes in Party Identification
+
+## Correlations between short term and long term outcomes
+
+Correlation structure among outcomes by treatment and wave. Ellipses indicate sign and strength; red/blue color encodes sign.
+
+```{r}
+# Build a long data frame of correlations by wave and treatment
+build_cor_df <- function(df, wave_label) {
+  groups <- list(
+    list(treat = "Treated", data = df |> filter(workshop_Treatment == 1)),
+    list(treat = "Control", data = df |> filter(workshop_Treatment == 0))
+  )
+  purrr::map_df(groups, function(x) {
+    df_sel <- x$data |> select(all_of(v_outcomes))
+    colnames(df_sel) <- names(v_outcomes)
+    cmat <- cor(df_sel, use = "pairwise.complete.obs")
+    as.data.frame(as.table(cmat)) |>
+      rename(var1 = Var1, var2 = Var2, r = Freq) |>
+      mutate(treat = x$treat, wave = wave_label)
+  })
+}
+
+# Compute correlations for both waves
+cor_w9 <- build_cor_df(datasets$wave_9, "Short-term")
+cor_w10 <- build_cor_df(datasets$wave_10, "Long-term")
+
+cor_long <- bind_rows(cor_w9, cor_w10) |>
+  mutate(sign = ifelse(r >= 0, "positive", "negative"))
+
+# Prepare indices for grid positions
+var_levels <- names(v_outcomes)
+cor_long <- cor_long |>
+  mutate(
+    x_idx = match(var2, var_levels),
+    y_idx = match(var1, var_levels)
+  )
+
+# Upper triangle: filled ellipses inside cells, scaled to avoid overlap
+scale_in_cell <- 0.42
+ellipse_upper <- cor_long |>
+  filter(y_idx < x_idx) |>
+  group_by(wave, treat, var1, var2, r, x_idx, y_idx, sign) |>
+  do({
+    rr <- .$r[1]
+    S <- matrix(c(1, rr, rr, 1), nrow = 2)
+    e <- as.data.frame(ellipse::ellipse(S, centre = c(0, 0), level = 0.68, npoints = 80))
+    # normalize to unit box then scale to cell fraction
+    maxabs <- max(max(abs(e$x)), max(abs(e$y)), 1e-9)
+    e$x <- (e$x / maxabs) * scale_in_cell + .$x_idx[1]
+    e$y <- (e$y / maxabs) * scale_in_cell + .$y_idx[1]
+    e$wave <- .$wave[1]
+    e$treat <- .$treat[1]
+    e$var1 <- .$var1[1]
+    e$var2 <- .$var2[1]
+    e$sign <- .$sign[1]
+    e$r <- rr
+    e
+  }) |>
+  ungroup()
+
+# Lower triangle: numeric labels
+label_lower <- cor_long |>
+  filter(y_idx > x_idx) |>
+  mutate(label = sprintf("%.2f", r))
+
+# Diagonal: blanks (or could set to 1.00 if desired)
+
+p_cor <- ggplot() +
+  geom_polygon(
+    data = ellipse_upper,
+    aes(x = x, y = y, group = interaction(wave, treat, var1, var2), fill = sign),
+    color = NA, alpha = 0.75
+  ) +
+  geom_text(
+    data = label_lower,
+    aes(x = x_idx, y = y_idx, label = label, color = sign),
+    size = 3
+  ) +
+  scale_fill_manual(values = c(positive = "#d73027", negative = "#4575b4"), name = "Sign") +
+  scale_color_manual(values = c(positive = "#d73027", negative = "#4575b4"), guide = "none") +
+  scale_x_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
+  scale_y_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
+  coord_fixed() +
+  labs(x = NULL, y = NULL) +
+  theme_tiktok() +
+  theme(
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  facet_grid(rows = vars(treat), cols = vars(wave))
+
+print(p_cor)
+ggsave(filename = file.path(fig_dir, paste0("correlation_ellipses.pdf")), plot = p_cor, width = 9, height = 7, device = cairo_pdf)
+```

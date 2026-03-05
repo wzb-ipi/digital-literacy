@@ -1,0 +1,14 @@
+---
+title: "Digital literacy reduces susceptibility to populist content on social media"
+subtitle: Replication data and code
+format: 
+  html:
+    embed-resources: true
+author: Kristina Aleksandrovna Pedersen, Ferdinand Geissler, Felix Hartmann, Johannes Giesecke, Macartan Humphreys, Heike Klüver
+---
+
+1. [Data preparation and checks](1_data_prep.html)
+2. data (`.rds`) files: [wave_9](data/wave_9.rds) [wave_10](data/wave_10.rds)
+3. [Replication code](2_analysis.html)
+
+ 
