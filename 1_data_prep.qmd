@@ -169,3 +169,344 @@ df_w9_ptv <-
 write_rds(df_w9_ptv, "data/df_w9_ptv.rds")
 
 ```
+
+# Attrition data
+
+```{r}
+# helper: make 1/0/NA bins from party codes
+code_party_bin <- function(x, codes) {
+  x <- as.numeric(x)
+  ifelse(is.na(x), NA_integer_, as.integer(x %in% codes))
+}
+
+df <- 
+  read_dta("../../1_Projects/Covid Vaccine Allocation/5_writing/Paper 11/Stata do-files/Check_longterm_effects/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
+
+
+df <- df %>%
+    dplyr::filter(SwitchedToRandom == 1) |>
+    filter(!VideoDuration %in% c(-9, NA)) |>
+  mutate(
+    # optional readable label
+    treated_w9 = treated,
+    # attrition indicator
+    respondent_type = if_else(`_merge` == 3, 2L, 1L),
+    respondent_type = factor(
+      respondent_type,
+      levels = c(1L, 2L),
+      labels = c("only wave 9", "wave 9 and wave 10")
+    ),
+    # binary indicator: 1 if wave 9 & wave 10, else 0
+    w9_w10 = if_else(`_merge` == 3, 1L, 0L),
+    # raw cleaned 0–10 PTVs (99 -> NA)
+    ptv_cdu_w9_pre    = clean_ptv(PTV_GLESr1),   # "Die CDU/Die CSU" in your data
+    ptv_spd_w9_pre    = clean_ptv(PTV_GLESr3),
+    ptv_linke_w9_pre  = clean_ptv(PTV_GLESr4),
+    ptv_gruene_w9_pre = clean_ptv(PTV_GLESr5),
+    ptv_fdp_w9_pre    = clean_ptv(PTV_GLESr6),
+    ptv_afd_w9_pre    = clean_ptv(PTV_GLESr7),
+    ptv_bsw_w9_pre    = clean_ptv(PTV_GLESr8),
+    # post-treatment PTVs (wave 9)
+    ptv_cdu_w9_post    = clean_ptv(PTV_Posteriorr1),   # "Die CDU/ Die CSU"
+    ptv_spd_w9_post    = clean_ptv(PTV_Posteriorr3),
+    ptv_linke_w9_post  = clean_ptv(PTV_Posteriorr4),
+    ptv_gruene_w9_post = clean_ptv(PTV_Posteriorr5),
+    ptv_fdp_w9_post    = clean_ptv(PTV_Posteriorr6),
+    ptv_afd_w9_post    = clean_ptv(PTV_Posteriorr7),
+    ptv_bsw_w9_post    = clean_ptv(PTV_Posteriorr8),
+    # Optional: combined party string (useful later)
+    party = case_when(
+      Parteienidentifikation %in% c(1, 2) ~ "CDU/CSU",
+      Parteienidentifikation == 3 ~ "SPD",
+      Parteienidentifikation == 4 ~ "AfD",
+      Parteienidentifikation == 5 ~ "Gruene",
+      Parteienidentifikation == 6 ~ "FDP",
+      Parteienidentifikation == 7 ~ "Linke",
+      Parteienidentifikation == 8 ~ "BSW",
+      Parteienidentifikation == 9 ~ "Other",
+      Parteienidentifikation == 10 ~ "None",
+      TRUE ~ NA_character_
+    ),
+    # Binary indicators (1 if that party, 0 otherwise; NA stays NA)
+    party_id_cdu_w9    = as.integer(Parteienidentifikation %in% c(1, 2)),
+    party_id_spd_w9    = as.integer(Parteienidentifikation == 3),
+    party_id_afd_w9    = as.integer(Parteienidentifikation == 4),
+    party_id_gruene_w9 = as.integer(Parteienidentifikation == 5),
+    party_id_fdp_w9    = as.integer(Parteienidentifikation == 6),
+    party_id_linke_w9  = as.integer(Parteienidentifikation == 7),
+    party_id_bsw_w9    = as.integer(Parteienidentifikation == 8),
+    party_id_other_w9  = as.integer(Parteienidentifikation == 9),
+    party_id_none_w9   = as.integer(Parteienidentifikation == 10)
+  ) %>%
+  mutate(
+    # optional readable label
+    party_w10 = case_when(
+      as.numeric(Parteienidentifikation_W) %in% c(1, 2) ~ "CDU/CSU",
+      as.numeric(Parteienidentifikation_W) == 3 ~ "SPD",
+      as.numeric(Parteienidentifikation_W) == 4 ~ "AfD",
+      as.numeric(Parteienidentifikation_W) == 5 ~ "Gruene",
+      as.numeric(Parteienidentifikation_W) == 6 ~ "FDP",
+      as.numeric(Parteienidentifikation_W) == 7 ~ "Linke",
+      as.numeric(Parteienidentifikation_W) == 8 ~ "BSW",
+      as.numeric(Parteienidentifikation_W) == 9 ~ "Other",
+      as.numeric(Parteienidentifikation_W) == 10 ~ "None",
+      TRUE ~ NA_character_
+    ),
+    # wave 10 binaries
+    party_id_cdu_w10    = code_party_bin(Parteienidentifikation_W, c(1, 2)),
+    party_id_spd_w10    = code_party_bin(Parteienidentifikation_W, 3),
+    party_id_afd_w10    = code_party_bin(Parteienidentifikation_W, 4),
+    party_id_gruene_w10 = code_party_bin(Parteienidentifikation_W, 5),
+    party_id_fdp_w10    = code_party_bin(Parteienidentifikation_W, 6),
+    party_id_linke_w10  = code_party_bin(Parteienidentifikation_W, 7),
+    party_id_bsw_w10    = code_party_bin(Parteienidentifikation_W, 8),
+    party_id_other_w10  = code_party_bin(Parteienidentifikation_W, 9),
+    party_id_none_w10   = code_party_bin(Parteienidentifikation_W, 10)
+  ) %>%
+  dplyr::mutate(
+    # Binary: 1 = East, 0 = West, NA = not identified/unknown
+    east_bin = case_when(
+      state %in% c(3L, 4L, 8L, 13L, 14L, 16L) ~ 1L,     # Berlin, BB, MV, SN, ST, TH
+      state == 17L                                   ~ NA_integer_,  # not identified
+      is.na(state)                                    ~ NA_integer_,
+      TRUE                                            ~ 0L
+    ),
+    # Labeled factor for East/West
+    east_west = factor(east_bin, levels = c(0L, 1L),
+                       labels = c("West", "East")),
+    # Labeled factor for Bundesland
+    state = factor(
+      state,
+      levels = 1:17,
+      labels = c(
+        "Baden-Württemberg", "Bayern", "Berlin", "Brandenburg", "Bremen",
+        "Hamburg", "Hessen", "Mecklenburg-Vorpommern", "Niedersachsen",
+        "Nordrhein-Westfalen", "Rheinland-Pfalz", "Saarland", "Sachsen",
+        "Sachsen-Anhalt", "Schleswig-Holstein", "Thüringen", "not identified"
+      )
+    )
+  ) |>
+  dplyr::mutate(
+    # East (Berlin + the five new states are coded as East)
+    east = dplyr::case_when(
+      state %in% c("Berlin", "Brandenburg", "Mecklenburg-Vorpommern",
+                   "Sachsen", "Sachsen-Anhalt", "Thüringen") ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+
+    # Specific binary for Saxony
+    Saxony = dplyr::case_when(
+      state == "Sachsen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+
+    # --- One dummy per state (0/1/NA) ---
+    state_Baden_Wuerttemberg = dplyr::case_when(
+      state == "Baden-Württemberg" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Bayern = dplyr::case_when(
+      state == "Bayern" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Berlin = dplyr::case_when(
+      state == "Berlin" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Brandenburg = dplyr::case_when(
+      state == "Brandenburg" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Bremen = dplyr::case_when(
+      state == "Bremen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Hamburg = dplyr::case_when(
+      state == "Hamburg" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Hessen = dplyr::case_when(
+      state == "Hessen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Mecklenburg_Vorpommern = dplyr::case_when(
+      state == "Mecklenburg-Vorpommern" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Niedersachsen = dplyr::case_when(
+      state == "Niedersachsen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Nordrhein_Westfalen = dplyr::case_when(
+      state == "Nordrhein-Westfalen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Rheinland_Pfalz = dplyr::case_when(
+      state == "Rheinland-Pfalz" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Saarland = dplyr::case_when(
+      state == "Saarland" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Sachsen = dplyr::case_when(
+      state == "Sachsen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Sachsen_Anhalt = dplyr::case_when(
+      state == "Sachsen-Anhalt" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Schleswig_Holstein = dplyr::case_when(
+      state == "Schleswig-Holstein" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    ),
+    state_Thueringen = dplyr::case_when(
+      state == "Thüringen" ~ 1L,
+      state == "not identified" ~ NA_integer_,
+      TRUE ~ 0L
+    )
+  ) |>
+  dplyr::mutate(
+    # make sure it's numeric first (if it came in as labelled/factor)
+    urban_num = as.numeric(urban),
+
+    urban_ballungsraum = dplyr::case_when(
+      urban_num == 1 ~ 1L,
+      urban_num == 4 ~ NA_integer_,
+      TRUE           ~ 0L
+    ),
+    urban_stadtregion = dplyr::case_when(
+      urban_num == 2 ~ 1L,
+      urban_num == 4 ~ NA_integer_,
+      TRUE           ~ 0L
+    ),
+    urban_mittelzentrum = dplyr::case_when(
+      urban_num == 3 ~ 1L,
+      urban_num == 4 ~ NA_integer_,
+      TRUE           ~ 0L
+    ),
+    # optional: single binary "urban (high density) vs. rest"
+    urban_high = dplyr::case_when(
+      urban_num %in% c(1, 2) ~ 1L,
+      urban_num == 3         ~ 0L,
+      urban_num == 4         ~ NA_integer_,
+      TRUE                   ~ NA_integer_
+    )
+  ) |>
+  dplyr::select(-urban_num)  
+
+
+
+df <- df %>%
+  # your select; removed one duplicate column, kept order stable
+  dplyr::select(
+    `_merge`, ID_W9, 
+    # 
+    w9_w10, respondent_type,
+    # wave 9 pre covariates
+    Alter, Geschlecht, 
+    plz, 
+    east,
+    state_Baden_Wuerttemberg, state_Bayern, state_Berlin, state_Brandenburg,
+    state_Bremen, state_Hamburg, state_Hessen, state_Mecklenburg_Vorpommern,
+    state_Niedersachsen, state_Nordrhein_Westfalen, state_Rheinland_Pfalz,
+    state_Saarland, state_Sachsen, state_Sachsen_Anhalt,
+    state_Schleswig_Holstein, state_Thueringen,
+    urban_ballungsraum,urban_stadtregion,urban_mittelzentrum,urban_high,
+    citysize,
+    # social media 
+    Video_UserFacebook, Video_UserTikTok, Video_UserSnapchat,
+    Video_UserPinterest, Video_UserX_ehem_Twitter, Video_UserTwitch,
+    Politikinteresse, Most_important_issue, Competence, LR,
+    # party id
+    party_id_cdu_w9,party_id_spd_w9,party_id_afd_w9,
+    party_id_gruene_w9,party_id_fdp_w9,party_id_linke_w9,
+    party_id_bsw_w9,
+    # ptv w9 pre 
+    ptv_cdu_w9_pre, ptv_spd_w9_pre, ptv_linke_w9_pre, ptv_gruene_w9_pre,
+    ptv_fdp_w9_pre, ptv_afd_w9_pre, ptv_bsw_w9_pre, 
+    # other
+    Prior_performance_general_2, Solidaritat,
+    Sozialer_Zusammenhalt, Migration, TikTok_User, TikTok_Potential,
+    # treatment
+    treated_w9,
+    # ptv w9 post 
+    ptv_cdu_w9_post, ptv_spd_w9_post, ptv_linke_w9_post, ptv_gruene_w9_post,
+    ptv_fdp_w9_post, ptv_afd_w9_post, ptv_bsw_w9_post,
+    # job
+    Beruflicher_Status, Berufliche_Stellung,
+    # education
+    Bildung_schulisch, Bildung_beruflich,
+    # other
+    Eigene_Kinder, HaushaltsgroBe, Migrationshintergrund_Eltern, Haushaltseinkommen,
+    # outcomes (W9)
+    like_w9, bookmark_w9, share_w9, report_w9,
+    # secondary oucomes w9
+    # political emotion outcomes if present
+    w9_like_political_emotion, w9_book_political_emotion,
+    w9_share_political_emotion, w9_report_political_emotion,
+    # outcomes (W10) 
+    like_w10, bookmark_w10, share_w10, report_w10,
+    # party id
+    party_id_cdu_w10,party_id_spd_w10,party_id_afd_w10,
+    party_id_afd_w10,party_id_gruene_w10,party_id_fdp_w10,
+    party_id_linke_w10,party_id_linke_w10,party_id_bsw_w10,
+    # outcomes (W10)
+    w10_like_political_emotion, w10_book_political_emotion,
+    w10_share_political_emotion, w10_report_political_emotion
+  ) %>%
+  rename_with(tolower)
+
+df <- df %>%
+  mutate(
+    # TikTok_User (1=Ja, 2=Nein, 3=kenne TikTok nicht)
+    tiktok_user_yes = case_when(
+      tiktok_user == 1L ~ 1L,
+      tiktok_user %in% c(2L, 3L) ~ 0L,
+      TRUE ~ NA_integer_
+    ),
+    tiktok_user_no = case_when(
+      tiktok_user == 2L ~ 1L,
+      tiktok_user %in% c(1L, 3L) ~ 0L,
+      TRUE ~ NA_integer_
+    ),
+    # TikTok_Potential (asked only if tik_tok_user == 2)
+    # 1=Ja, 2=Nein; NA when not asked (has account or doesn’t know TikTok)
+    tiktok_potential_yes = case_when(
+      tiktok_user == 2L & tiktok_potential == 1L ~ 1L,
+      tiktok_user == 2L & tiktok_potential == 2L ~ 0L,
+      tiktok_user %in% c(1L, 3L)                  ~ NA_integer_,
+      TRUE                                          ~ NA_integer_
+    ),
+    tiktok_potential_no = case_when(
+      tiktok_user == 2L & tiktok_potential == 2L ~ 1L,
+      tiktok_user == 2L & tiktok_potential == 1L ~ 0L,
+      tiktok_user %in% c(1L, 3L)                  ~ NA_integer_,
+      TRUE                                          ~ NA_integer_
+    )
+  )  %>% filter(!is.na(treated_w9)) |>
+  mutate(
+   attrit = ifelse(w9_w10 == 1, 0, 1) # Define outcome (1 = attrited, 0 = stayed)
+   )
+
+df |> write_rds("data/df.rds")
+
+```

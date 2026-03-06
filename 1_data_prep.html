@@ -2213,6 +2213,7 @@ vertical-align: -.125em;
   <li><a href="#prepare-and-export-data" id="toc-prepare-and-export-data" class="nav-link" data-scroll-target="#prepare-and-export-data"><span class="header-section-number">4</span> Prepare and export data</a></li>
   <li><a href="#retain-video-descriptions" id="toc-retain-video-descriptions" class="nav-link" data-scroll-target="#retain-video-descriptions"><span class="header-section-number">5</span> Retain video descriptions</a></li>
   <li><a href="#propensity-to-vote-data" id="toc-propensity-to-vote-data" class="nav-link" data-scroll-target="#propensity-to-vote-data"><span class="header-section-number">6</span> Propensity to vote data</a></li>
+  <li><a href="#attrition-data" id="toc-attrition-data" class="nav-link" data-scroll-target="#attrition-data"><span class="header-section-number">7</span> Attrition data</a></li>
   </ul>
 </nav>
 </div>
@@ -2403,7 +2404,7 @@ vertical-align: -.125em;
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb6"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="co"># Scale 0 - 1</span></span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>clean_ptv <span class="ot">&lt;-</span> <span class="cf">function</span>(x, <span class="at">demean =</span> <span class="cn">FALSE</span>) {</span>
 <span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  x <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(x)</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ifelse</span>(x <span class="sc">%in%</span> <span class="dv">99</span>, <span class="cn">NA_real_</span>, x)</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  x <span class="ot">&lt;-</span> <span class="fu">ifelse</span>(x <span class="sc">==</span> <span class="dv">99</span>, <span class="cn">NA_real_</span>, x)</span>
 <span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">if</span>(demean) x <span class="ot">&lt;-</span> x <span class="sc">-</span> <span class="fu">mean</span>(x, <span class="at">na.rm =</span> <span class="cn">TRUE</span>)</span>
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  x<span class="sc">/</span><span class="dv">10</span></span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span>
@@ -2430,6 +2431,349 @@ vertical-align: -.125em;
 <span id="cb6-28"><a href="#cb6-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_post_bsw    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr8))</span>
 <span id="cb6-29"><a href="#cb6-29" aria-hidden="true" tabindex="-1"></a></span>
 <span id="cb6-30"><a href="#cb6-30" aria-hidden="true" tabindex="-1"></a><span class="fu">write_rds</span>(df_w9_ptv, <span class="st">&quot;data/df_w9_ptv.rds&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+</details>
+</div>
+</section>
+<section id="attrition-data" class="level1" data-number="7">
+<h1 data-number="7"><span class="header-section-number">7</span> Attrition data</h1>
+<div class="cell">
+<details class="code-fold">
+<summary>Code</summary>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb7"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># helper: make 1/0/NA bins from party codes</span></span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>code_party_bin <span class="ot">&lt;-</span> <span class="cf">function</span>(x, codes) {</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  x <span class="ot">&lt;-</span> <span class="fu">as.numeric</span>(x)</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ifelse</span>(<span class="fu">is.na</span>(x), <span class="cn">NA_integer_</span>, <span class="fu">as.integer</span>(x <span class="sc">%in%</span> codes))</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> </span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_dta</span>(<span class="st">&quot;../../1_Projects/Covid Vaccine Allocation/5_writing/Paper 11/Stata do-files/Check_longterm_effects/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta&quot;</span>) </span>
+<span id="cb7-9"><a href="#cb7-9" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-10"><a href="#cb7-10" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-11"><a href="#cb7-11" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span></span>
+<span id="cb7-12"><a href="#cb7-12" aria-hidden="true" tabindex="-1"></a>    dplyr<span class="sc">::</span><span class="fu">filter</span>(SwitchedToRandom <span class="sc">==</span> <span class="dv">1</span>) <span class="sc">|&gt;</span></span>
+<span id="cb7-13"><a href="#cb7-13" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(<span class="sc">!</span>VideoDuration <span class="sc">%in%</span> <span class="fu">c</span>(<span class="sc">-</span><span class="dv">9</span>, <span class="cn">NA</span>)) <span class="sc">|&gt;</span></span>
+<span id="cb7-14"><a href="#cb7-14" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-15"><a href="#cb7-15" aria-hidden="true" tabindex="-1"></a>    <span class="co"># optional readable label</span></span>
+<span id="cb7-16"><a href="#cb7-16" aria-hidden="true" tabindex="-1"></a>    <span class="at">treated_w9 =</span> treated,</span>
+<span id="cb7-17"><a href="#cb7-17" aria-hidden="true" tabindex="-1"></a>    <span class="co"># attrition indicator</span></span>
+<span id="cb7-18"><a href="#cb7-18" aria-hidden="true" tabindex="-1"></a>    <span class="at">respondent_type =</span> <span class="fu">if_else</span>(<span class="st">`</span><span class="at">_merge</span><span class="st">`</span> <span class="sc">==</span> <span class="dv">3</span>, <span class="dv">2</span>L, <span class="dv">1</span>L),</span>
+<span id="cb7-19"><a href="#cb7-19" aria-hidden="true" tabindex="-1"></a>    <span class="at">respondent_type =</span> <span class="fu">factor</span>(</span>
+<span id="cb7-20"><a href="#cb7-20" aria-hidden="true" tabindex="-1"></a>      respondent_type,</span>
+<span id="cb7-21"><a href="#cb7-21" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">1</span>L, <span class="dv">2</span>L),</span>
+<span id="cb7-22"><a href="#cb7-22" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;only wave 9&quot;</span>, <span class="st">&quot;wave 9 and wave 10&quot;</span>)</span>
+<span id="cb7-23"><a href="#cb7-23" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-24"><a href="#cb7-24" aria-hidden="true" tabindex="-1"></a>    <span class="co"># binary indicator: 1 if wave 9 &amp; wave 10, else 0</span></span>
+<span id="cb7-25"><a href="#cb7-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">w9_w10 =</span> <span class="fu">if_else</span>(<span class="st">`</span><span class="at">_merge</span><span class="st">`</span> <span class="sc">==</span> <span class="dv">3</span>, <span class="dv">1</span>L, <span class="dv">0</span>L),</span>
+<span id="cb7-26"><a href="#cb7-26" aria-hidden="true" tabindex="-1"></a>    <span class="co"># raw cleaned 0–10 PTVs (99 -&gt; NA)</span></span>
+<span id="cb7-27"><a href="#cb7-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_cdu_w9_pre    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr1),   <span class="co"># &quot;Die CDU/Die CSU&quot; in your data</span></span>
+<span id="cb7-28"><a href="#cb7-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_spd_w9_pre    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr3),</span>
+<span id="cb7-29"><a href="#cb7-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_linke_w9_pre  =</span> <span class="fu">clean_ptv</span>(PTV_GLESr4),</span>
+<span id="cb7-30"><a href="#cb7-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_gruene_w9_pre =</span> <span class="fu">clean_ptv</span>(PTV_GLESr5),</span>
+<span id="cb7-31"><a href="#cb7-31" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_fdp_w9_pre    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr6),</span>
+<span id="cb7-32"><a href="#cb7-32" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_afd_w9_pre    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr7),</span>
+<span id="cb7-33"><a href="#cb7-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_bsw_w9_pre    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr8),</span>
+<span id="cb7-34"><a href="#cb7-34" aria-hidden="true" tabindex="-1"></a>    <span class="co"># post-treatment PTVs (wave 9)</span></span>
+<span id="cb7-35"><a href="#cb7-35" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_cdu_w9_post    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr1),   <span class="co"># &quot;Die CDU/ Die CSU&quot;</span></span>
+<span id="cb7-36"><a href="#cb7-36" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_spd_w9_post    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr3),</span>
+<span id="cb7-37"><a href="#cb7-37" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_linke_w9_post  =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr4),</span>
+<span id="cb7-38"><a href="#cb7-38" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_gruene_w9_post =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr5),</span>
+<span id="cb7-39"><a href="#cb7-39" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_fdp_w9_post    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr6),</span>
+<span id="cb7-40"><a href="#cb7-40" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_afd_w9_post    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr7),</span>
+<span id="cb7-41"><a href="#cb7-41" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_bsw_w9_post    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr8),</span>
+<span id="cb7-42"><a href="#cb7-42" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Optional: combined party string (useful later)</span></span>
+<span id="cb7-43"><a href="#cb7-43" aria-hidden="true" tabindex="-1"></a>    <span class="at">party =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-44"><a href="#cb7-44" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>) <span class="sc">~</span> <span class="st">&quot;CDU/CSU&quot;</span>,</span>
+<span id="cb7-45"><a href="#cb7-45" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">3</span> <span class="sc">~</span> <span class="st">&quot;SPD&quot;</span>,</span>
+<span id="cb7-46"><a href="#cb7-46" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="st">&quot;AfD&quot;</span>,</span>
+<span id="cb7-47"><a href="#cb7-47" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">5</span> <span class="sc">~</span> <span class="st">&quot;Gruene&quot;</span>,</span>
+<span id="cb7-48"><a href="#cb7-48" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">6</span> <span class="sc">~</span> <span class="st">&quot;FDP&quot;</span>,</span>
+<span id="cb7-49"><a href="#cb7-49" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">7</span> <span class="sc">~</span> <span class="st">&quot;Linke&quot;</span>,</span>
+<span id="cb7-50"><a href="#cb7-50" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">8</span> <span class="sc">~</span> <span class="st">&quot;BSW&quot;</span>,</span>
+<span id="cb7-51"><a href="#cb7-51" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">9</span> <span class="sc">~</span> <span class="st">&quot;Other&quot;</span>,</span>
+<span id="cb7-52"><a href="#cb7-52" aria-hidden="true" tabindex="-1"></a>      Parteienidentifikation <span class="sc">==</span> <span class="dv">10</span> <span class="sc">~</span> <span class="st">&quot;None&quot;</span>,</span>
+<span id="cb7-53"><a href="#cb7-53" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_character_</span></span>
+<span id="cb7-54"><a href="#cb7-54" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-55"><a href="#cb7-55" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Binary indicators (1 if that party, 0 otherwise; NA stays NA)</span></span>
+<span id="cb7-56"><a href="#cb7-56" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_cdu_w9    =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-57"><a href="#cb7-57" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_spd_w9    =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">3</span>),</span>
+<span id="cb7-58"><a href="#cb7-58" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_afd_w9    =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">4</span>),</span>
+<span id="cb7-59"><a href="#cb7-59" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_gruene_w9 =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">5</span>),</span>
+<span id="cb7-60"><a href="#cb7-60" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_fdp_w9    =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">6</span>),</span>
+<span id="cb7-61"><a href="#cb7-61" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_linke_w9  =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">7</span>),</span>
+<span id="cb7-62"><a href="#cb7-62" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_bsw_w9    =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">8</span>),</span>
+<span id="cb7-63"><a href="#cb7-63" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_other_w9  =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">9</span>),</span>
+<span id="cb7-64"><a href="#cb7-64" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_none_w9   =</span> <span class="fu">as.integer</span>(Parteienidentifikation <span class="sc">==</span> <span class="dv">10</span>)</span>
+<span id="cb7-65"><a href="#cb7-65" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb7-66"><a href="#cb7-66" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-67"><a href="#cb7-67" aria-hidden="true" tabindex="-1"></a>    <span class="co"># optional readable label</span></span>
+<span id="cb7-68"><a href="#cb7-68" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_w10 =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-69"><a href="#cb7-69" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>) <span class="sc">~</span> <span class="st">&quot;CDU/CSU&quot;</span>,</span>
+<span id="cb7-70"><a href="#cb7-70" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">3</span> <span class="sc">~</span> <span class="st">&quot;SPD&quot;</span>,</span>
+<span id="cb7-71"><a href="#cb7-71" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="st">&quot;AfD&quot;</span>,</span>
+<span id="cb7-72"><a href="#cb7-72" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">5</span> <span class="sc">~</span> <span class="st">&quot;Gruene&quot;</span>,</span>
+<span id="cb7-73"><a href="#cb7-73" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">6</span> <span class="sc">~</span> <span class="st">&quot;FDP&quot;</span>,</span>
+<span id="cb7-74"><a href="#cb7-74" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">7</span> <span class="sc">~</span> <span class="st">&quot;Linke&quot;</span>,</span>
+<span id="cb7-75"><a href="#cb7-75" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">8</span> <span class="sc">~</span> <span class="st">&quot;BSW&quot;</span>,</span>
+<span id="cb7-76"><a href="#cb7-76" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">9</span> <span class="sc">~</span> <span class="st">&quot;Other&quot;</span>,</span>
+<span id="cb7-77"><a href="#cb7-77" aria-hidden="true" tabindex="-1"></a>      <span class="fu">as.numeric</span>(Parteienidentifikation_W) <span class="sc">==</span> <span class="dv">10</span> <span class="sc">~</span> <span class="st">&quot;None&quot;</span>,</span>
+<span id="cb7-78"><a href="#cb7-78" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_character_</span></span>
+<span id="cb7-79"><a href="#cb7-79" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-80"><a href="#cb7-80" aria-hidden="true" tabindex="-1"></a>    <span class="co"># wave 10 binaries</span></span>
+<span id="cb7-81"><a href="#cb7-81" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_cdu_w10    =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>)),</span>
+<span id="cb7-82"><a href="#cb7-82" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_spd_w10    =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">3</span>),</span>
+<span id="cb7-83"><a href="#cb7-83" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_afd_w10    =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">4</span>),</span>
+<span id="cb7-84"><a href="#cb7-84" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_gruene_w10 =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">5</span>),</span>
+<span id="cb7-85"><a href="#cb7-85" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_fdp_w10    =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">6</span>),</span>
+<span id="cb7-86"><a href="#cb7-86" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_linke_w10  =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">7</span>),</span>
+<span id="cb7-87"><a href="#cb7-87" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_bsw_w10    =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">8</span>),</span>
+<span id="cb7-88"><a href="#cb7-88" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_other_w10  =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">9</span>),</span>
+<span id="cb7-89"><a href="#cb7-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">party_id_none_w10   =</span> <span class="fu">code_party_bin</span>(Parteienidentifikation_W, <span class="dv">10</span>)</span>
+<span id="cb7-90"><a href="#cb7-90" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb7-91"><a href="#cb7-91" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb7-92"><a href="#cb7-92" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Binary: 1 = East, 0 = West, NA = not identified/unknown</span></span>
+<span id="cb7-93"><a href="#cb7-93" aria-hidden="true" tabindex="-1"></a>    <span class="at">east_bin =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-94"><a href="#cb7-94" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">3</span>L, <span class="dv">4</span>L, <span class="dv">8</span>L, <span class="dv">13</span>L, <span class="dv">14</span>L, <span class="dv">16</span>L) <span class="sc">~</span> <span class="dv">1</span>L,     <span class="co"># Berlin, BB, MV, SN, ST, TH</span></span>
+<span id="cb7-95"><a href="#cb7-95" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="dv">17</span>L                                   <span class="sc">~</span> <span class="cn">NA_integer_</span>,  <span class="co"># not identified</span></span>
+<span id="cb7-96"><a href="#cb7-96" aria-hidden="true" tabindex="-1"></a>      <span class="fu">is.na</span>(state)                                    <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-97"><a href="#cb7-97" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>                                            <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-98"><a href="#cb7-98" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-99"><a href="#cb7-99" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Labeled factor for East/West</span></span>
+<span id="cb7-100"><a href="#cb7-100" aria-hidden="true" tabindex="-1"></a>    <span class="at">east_west =</span> <span class="fu">factor</span>(east_bin, <span class="at">levels =</span> <span class="fu">c</span>(<span class="dv">0</span>L, <span class="dv">1</span>L),</span>
+<span id="cb7-101"><a href="#cb7-101" aria-hidden="true" tabindex="-1"></a>                       <span class="at">labels =</span> <span class="fu">c</span>(<span class="st">&quot;West&quot;</span>, <span class="st">&quot;East&quot;</span>)),</span>
+<span id="cb7-102"><a href="#cb7-102" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Labeled factor for Bundesland</span></span>
+<span id="cb7-103"><a href="#cb7-103" aria-hidden="true" tabindex="-1"></a>    <span class="at">state =</span> <span class="fu">factor</span>(</span>
+<span id="cb7-104"><a href="#cb7-104" aria-hidden="true" tabindex="-1"></a>      state,</span>
+<span id="cb7-105"><a href="#cb7-105" aria-hidden="true" tabindex="-1"></a>      <span class="at">levels =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">17</span>,</span>
+<span id="cb7-106"><a href="#cb7-106" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> <span class="fu">c</span>(</span>
+<span id="cb7-107"><a href="#cb7-107" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;Baden-Württemberg&quot;</span>, <span class="st">&quot;Bayern&quot;</span>, <span class="st">&quot;Berlin&quot;</span>, <span class="st">&quot;Brandenburg&quot;</span>, <span class="st">&quot;Bremen&quot;</span>,</span>
+<span id="cb7-108"><a href="#cb7-108" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;Hamburg&quot;</span>, <span class="st">&quot;Hessen&quot;</span>, <span class="st">&quot;Mecklenburg-Vorpommern&quot;</span>, <span class="st">&quot;Niedersachsen&quot;</span>,</span>
+<span id="cb7-109"><a href="#cb7-109" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;Nordrhein-Westfalen&quot;</span>, <span class="st">&quot;Rheinland-Pfalz&quot;</span>, <span class="st">&quot;Saarland&quot;</span>, <span class="st">&quot;Sachsen&quot;</span>,</span>
+<span id="cb7-110"><a href="#cb7-110" aria-hidden="true" tabindex="-1"></a>        <span class="st">&quot;Sachsen-Anhalt&quot;</span>, <span class="st">&quot;Schleswig-Holstein&quot;</span>, <span class="st">&quot;Thüringen&quot;</span>, <span class="st">&quot;not identified&quot;</span></span>
+<span id="cb7-111"><a href="#cb7-111" aria-hidden="true" tabindex="-1"></a>      )</span>
+<span id="cb7-112"><a href="#cb7-112" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-113"><a href="#cb7-113" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb7-114"><a href="#cb7-114" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb7-115"><a href="#cb7-115" aria-hidden="true" tabindex="-1"></a>    <span class="co"># East (Berlin + the five new states are coded as East)</span></span>
+<span id="cb7-116"><a href="#cb7-116" aria-hidden="true" tabindex="-1"></a>    <span class="at">east =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-117"><a href="#cb7-117" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">%in%</span> <span class="fu">c</span>(<span class="st">&quot;Berlin&quot;</span>, <span class="st">&quot;Brandenburg&quot;</span>, <span class="st">&quot;Mecklenburg-Vorpommern&quot;</span>,</span>
+<span id="cb7-118"><a href="#cb7-118" aria-hidden="true" tabindex="-1"></a>                   <span class="st">&quot;Sachsen&quot;</span>, <span class="st">&quot;Sachsen-Anhalt&quot;</span>, <span class="st">&quot;Thüringen&quot;</span>) <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-119"><a href="#cb7-119" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-120"><a href="#cb7-120" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-121"><a href="#cb7-121" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-122"><a href="#cb7-122" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-123"><a href="#cb7-123" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Specific binary for Saxony</span></span>
+<span id="cb7-124"><a href="#cb7-124" aria-hidden="true" tabindex="-1"></a>    <span class="at">Saxony =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-125"><a href="#cb7-125" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Sachsen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-126"><a href="#cb7-126" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-127"><a href="#cb7-127" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-128"><a href="#cb7-128" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-129"><a href="#cb7-129" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-130"><a href="#cb7-130" aria-hidden="true" tabindex="-1"></a>    <span class="co"># --- One dummy per state (0/1/NA) ---</span></span>
+<span id="cb7-131"><a href="#cb7-131" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Baden_Wuerttemberg =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-132"><a href="#cb7-132" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Baden-Württemberg&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-133"><a href="#cb7-133" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-134"><a href="#cb7-134" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-135"><a href="#cb7-135" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-136"><a href="#cb7-136" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Bayern =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-137"><a href="#cb7-137" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Bayern&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-138"><a href="#cb7-138" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-139"><a href="#cb7-139" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-140"><a href="#cb7-140" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-141"><a href="#cb7-141" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Berlin =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-142"><a href="#cb7-142" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Berlin&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-143"><a href="#cb7-143" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-144"><a href="#cb7-144" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-145"><a href="#cb7-145" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-146"><a href="#cb7-146" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Brandenburg =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-147"><a href="#cb7-147" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Brandenburg&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-148"><a href="#cb7-148" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-149"><a href="#cb7-149" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-150"><a href="#cb7-150" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-151"><a href="#cb7-151" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Bremen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-152"><a href="#cb7-152" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Bremen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-153"><a href="#cb7-153" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-154"><a href="#cb7-154" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-155"><a href="#cb7-155" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-156"><a href="#cb7-156" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Hamburg =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-157"><a href="#cb7-157" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Hamburg&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-158"><a href="#cb7-158" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-159"><a href="#cb7-159" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-160"><a href="#cb7-160" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-161"><a href="#cb7-161" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Hessen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-162"><a href="#cb7-162" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Hessen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-163"><a href="#cb7-163" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-164"><a href="#cb7-164" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-165"><a href="#cb7-165" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-166"><a href="#cb7-166" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Mecklenburg_Vorpommern =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-167"><a href="#cb7-167" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Mecklenburg-Vorpommern&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-168"><a href="#cb7-168" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-169"><a href="#cb7-169" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-170"><a href="#cb7-170" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-171"><a href="#cb7-171" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Niedersachsen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-172"><a href="#cb7-172" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Niedersachsen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-173"><a href="#cb7-173" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-174"><a href="#cb7-174" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-175"><a href="#cb7-175" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-176"><a href="#cb7-176" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Nordrhein_Westfalen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-177"><a href="#cb7-177" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Nordrhein-Westfalen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-178"><a href="#cb7-178" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-179"><a href="#cb7-179" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-180"><a href="#cb7-180" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-181"><a href="#cb7-181" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Rheinland_Pfalz =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-182"><a href="#cb7-182" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Rheinland-Pfalz&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-183"><a href="#cb7-183" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-184"><a href="#cb7-184" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-185"><a href="#cb7-185" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-186"><a href="#cb7-186" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Saarland =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-187"><a href="#cb7-187" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Saarland&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-188"><a href="#cb7-188" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-189"><a href="#cb7-189" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-190"><a href="#cb7-190" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-191"><a href="#cb7-191" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Sachsen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-192"><a href="#cb7-192" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Sachsen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-193"><a href="#cb7-193" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-194"><a href="#cb7-194" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-195"><a href="#cb7-195" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-196"><a href="#cb7-196" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Sachsen_Anhalt =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-197"><a href="#cb7-197" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Sachsen-Anhalt&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-198"><a href="#cb7-198" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-199"><a href="#cb7-199" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-200"><a href="#cb7-200" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-201"><a href="#cb7-201" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Schleswig_Holstein =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-202"><a href="#cb7-202" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Schleswig-Holstein&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-203"><a href="#cb7-203" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-204"><a href="#cb7-204" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-205"><a href="#cb7-205" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-206"><a href="#cb7-206" aria-hidden="true" tabindex="-1"></a>    <span class="at">state_Thueringen =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-207"><a href="#cb7-207" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;Thüringen&quot;</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-208"><a href="#cb7-208" aria-hidden="true" tabindex="-1"></a>      state <span class="sc">==</span> <span class="st">&quot;not identified&quot;</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-209"><a href="#cb7-209" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-210"><a href="#cb7-210" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-211"><a href="#cb7-211" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb7-212"><a href="#cb7-212" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">mutate</span>(</span>
+<span id="cb7-213"><a href="#cb7-213" aria-hidden="true" tabindex="-1"></a>    <span class="co"># make sure it&#39;s numeric first (if it came in as labelled/factor)</span></span>
+<span id="cb7-214"><a href="#cb7-214" aria-hidden="true" tabindex="-1"></a>    <span class="at">urban_num =</span> <span class="fu">as.numeric</span>(urban),</span>
+<span id="cb7-215"><a href="#cb7-215" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-216"><a href="#cb7-216" aria-hidden="true" tabindex="-1"></a>    <span class="at">urban_ballungsraum =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-217"><a href="#cb7-217" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">1</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-218"><a href="#cb7-218" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-219"><a href="#cb7-219" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>           <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-220"><a href="#cb7-220" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-221"><a href="#cb7-221" aria-hidden="true" tabindex="-1"></a>    <span class="at">urban_stadtregion =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-222"><a href="#cb7-222" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-223"><a href="#cb7-223" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-224"><a href="#cb7-224" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>           <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-225"><a href="#cb7-225" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-226"><a href="#cb7-226" aria-hidden="true" tabindex="-1"></a>    <span class="at">urban_mittelzentrum =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-227"><a href="#cb7-227" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">3</span> <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-228"><a href="#cb7-228" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-229"><a href="#cb7-229" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>           <span class="sc">~</span> <span class="dv">0</span>L</span>
+<span id="cb7-230"><a href="#cb7-230" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-231"><a href="#cb7-231" aria-hidden="true" tabindex="-1"></a>    <span class="co"># optional: single binary &quot;urban (high density) vs. rest&quot;</span></span>
+<span id="cb7-232"><a href="#cb7-232" aria-hidden="true" tabindex="-1"></a>    <span class="at">urban_high =</span> dplyr<span class="sc">::</span><span class="fu">case_when</span>(</span>
+<span id="cb7-233"><a href="#cb7-233" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>, <span class="dv">2</span>) <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-234"><a href="#cb7-234" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">3</span>         <span class="sc">~</span> <span class="dv">0</span>L,</span>
+<span id="cb7-235"><a href="#cb7-235" aria-hidden="true" tabindex="-1"></a>      urban_num <span class="sc">==</span> <span class="dv">4</span>         <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-236"><a href="#cb7-236" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>                   <span class="sc">~</span> <span class="cn">NA_integer_</span></span>
+<span id="cb7-237"><a href="#cb7-237" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-238"><a href="#cb7-238" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">|&gt;</span></span>
+<span id="cb7-239"><a href="#cb7-239" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(<span class="sc">-</span>urban_num)  </span>
+<span id="cb7-240"><a href="#cb7-240" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-241"><a href="#cb7-241" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-242"><a href="#cb7-242" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-243"><a href="#cb7-243" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span></span>
+<span id="cb7-244"><a href="#cb7-244" aria-hidden="true" tabindex="-1"></a>  <span class="co"># your select; removed one duplicate column, kept order stable</span></span>
+<span id="cb7-245"><a href="#cb7-245" aria-hidden="true" tabindex="-1"></a>  dplyr<span class="sc">::</span><span class="fu">select</span>(</span>
+<span id="cb7-246"><a href="#cb7-246" aria-hidden="true" tabindex="-1"></a>    <span class="st">`</span><span class="at">_merge</span><span class="st">`</span>, ID_W9, </span>
+<span id="cb7-247"><a href="#cb7-247" aria-hidden="true" tabindex="-1"></a>    <span class="co"># </span></span>
+<span id="cb7-248"><a href="#cb7-248" aria-hidden="true" tabindex="-1"></a>    w9_w10, respondent_type,</span>
+<span id="cb7-249"><a href="#cb7-249" aria-hidden="true" tabindex="-1"></a>    <span class="co"># wave 9 pre covariates</span></span>
+<span id="cb7-250"><a href="#cb7-250" aria-hidden="true" tabindex="-1"></a>    Alter, Geschlecht, </span>
+<span id="cb7-251"><a href="#cb7-251" aria-hidden="true" tabindex="-1"></a>    plz, </span>
+<span id="cb7-252"><a href="#cb7-252" aria-hidden="true" tabindex="-1"></a>    east,</span>
+<span id="cb7-253"><a href="#cb7-253" aria-hidden="true" tabindex="-1"></a>    state_Baden_Wuerttemberg, state_Bayern, state_Berlin, state_Brandenburg,</span>
+<span id="cb7-254"><a href="#cb7-254" aria-hidden="true" tabindex="-1"></a>    state_Bremen, state_Hamburg, state_Hessen, state_Mecklenburg_Vorpommern,</span>
+<span id="cb7-255"><a href="#cb7-255" aria-hidden="true" tabindex="-1"></a>    state_Niedersachsen, state_Nordrhein_Westfalen, state_Rheinland_Pfalz,</span>
+<span id="cb7-256"><a href="#cb7-256" aria-hidden="true" tabindex="-1"></a>    state_Saarland, state_Sachsen, state_Sachsen_Anhalt,</span>
+<span id="cb7-257"><a href="#cb7-257" aria-hidden="true" tabindex="-1"></a>    state_Schleswig_Holstein, state_Thueringen,</span>
+<span id="cb7-258"><a href="#cb7-258" aria-hidden="true" tabindex="-1"></a>    urban_ballungsraum,urban_stadtregion,urban_mittelzentrum,urban_high,</span>
+<span id="cb7-259"><a href="#cb7-259" aria-hidden="true" tabindex="-1"></a>    citysize,</span>
+<span id="cb7-260"><a href="#cb7-260" aria-hidden="true" tabindex="-1"></a>    <span class="co"># social media </span></span>
+<span id="cb7-261"><a href="#cb7-261" aria-hidden="true" tabindex="-1"></a>    Video_UserFacebook, Video_UserTikTok, Video_UserSnapchat,</span>
+<span id="cb7-262"><a href="#cb7-262" aria-hidden="true" tabindex="-1"></a>    Video_UserPinterest, Video_UserX_ehem_Twitter, Video_UserTwitch,</span>
+<span id="cb7-263"><a href="#cb7-263" aria-hidden="true" tabindex="-1"></a>    Politikinteresse, Most_important_issue, Competence, LR,</span>
+<span id="cb7-264"><a href="#cb7-264" aria-hidden="true" tabindex="-1"></a>    <span class="co"># party id</span></span>
+<span id="cb7-265"><a href="#cb7-265" aria-hidden="true" tabindex="-1"></a>    party_id_cdu_w9,party_id_spd_w9,party_id_afd_w9,</span>
+<span id="cb7-266"><a href="#cb7-266" aria-hidden="true" tabindex="-1"></a>    party_id_gruene_w9,party_id_fdp_w9,party_id_linke_w9,</span>
+<span id="cb7-267"><a href="#cb7-267" aria-hidden="true" tabindex="-1"></a>    party_id_bsw_w9,</span>
+<span id="cb7-268"><a href="#cb7-268" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ptv w9 pre </span></span>
+<span id="cb7-269"><a href="#cb7-269" aria-hidden="true" tabindex="-1"></a>    ptv_cdu_w9_pre, ptv_spd_w9_pre, ptv_linke_w9_pre, ptv_gruene_w9_pre,</span>
+<span id="cb7-270"><a href="#cb7-270" aria-hidden="true" tabindex="-1"></a>    ptv_fdp_w9_pre, ptv_afd_w9_pre, ptv_bsw_w9_pre, </span>
+<span id="cb7-271"><a href="#cb7-271" aria-hidden="true" tabindex="-1"></a>    <span class="co"># other</span></span>
+<span id="cb7-272"><a href="#cb7-272" aria-hidden="true" tabindex="-1"></a>    Prior_performance_general_2, Solidaritat,</span>
+<span id="cb7-273"><a href="#cb7-273" aria-hidden="true" tabindex="-1"></a>    Sozialer_Zusammenhalt, Migration, TikTok_User, TikTok_Potential,</span>
+<span id="cb7-274"><a href="#cb7-274" aria-hidden="true" tabindex="-1"></a>    <span class="co"># treatment</span></span>
+<span id="cb7-275"><a href="#cb7-275" aria-hidden="true" tabindex="-1"></a>    treated_w9,</span>
+<span id="cb7-276"><a href="#cb7-276" aria-hidden="true" tabindex="-1"></a>    <span class="co"># ptv w9 post </span></span>
+<span id="cb7-277"><a href="#cb7-277" aria-hidden="true" tabindex="-1"></a>    ptv_cdu_w9_post, ptv_spd_w9_post, ptv_linke_w9_post, ptv_gruene_w9_post,</span>
+<span id="cb7-278"><a href="#cb7-278" aria-hidden="true" tabindex="-1"></a>    ptv_fdp_w9_post, ptv_afd_w9_post, ptv_bsw_w9_post,</span>
+<span id="cb7-279"><a href="#cb7-279" aria-hidden="true" tabindex="-1"></a>    <span class="co"># job</span></span>
+<span id="cb7-280"><a href="#cb7-280" aria-hidden="true" tabindex="-1"></a>    Beruflicher_Status, Berufliche_Stellung,</span>
+<span id="cb7-281"><a href="#cb7-281" aria-hidden="true" tabindex="-1"></a>    <span class="co"># education</span></span>
+<span id="cb7-282"><a href="#cb7-282" aria-hidden="true" tabindex="-1"></a>    Bildung_schulisch, Bildung_beruflich,</span>
+<span id="cb7-283"><a href="#cb7-283" aria-hidden="true" tabindex="-1"></a>    <span class="co"># other</span></span>
+<span id="cb7-284"><a href="#cb7-284" aria-hidden="true" tabindex="-1"></a>    Eigene_Kinder, HaushaltsgroBe, Migrationshintergrund_Eltern, Haushaltseinkommen,</span>
+<span id="cb7-285"><a href="#cb7-285" aria-hidden="true" tabindex="-1"></a>    <span class="co"># outcomes (W9)</span></span>
+<span id="cb7-286"><a href="#cb7-286" aria-hidden="true" tabindex="-1"></a>    like_w9, bookmark_w9, share_w9, report_w9,</span>
+<span id="cb7-287"><a href="#cb7-287" aria-hidden="true" tabindex="-1"></a>    <span class="co"># secondary oucomes w9</span></span>
+<span id="cb7-288"><a href="#cb7-288" aria-hidden="true" tabindex="-1"></a>    <span class="co"># political emotion outcomes if present</span></span>
+<span id="cb7-289"><a href="#cb7-289" aria-hidden="true" tabindex="-1"></a>    w9_like_political_emotion, w9_book_political_emotion,</span>
+<span id="cb7-290"><a href="#cb7-290" aria-hidden="true" tabindex="-1"></a>    w9_share_political_emotion, w9_report_political_emotion,</span>
+<span id="cb7-291"><a href="#cb7-291" aria-hidden="true" tabindex="-1"></a>    <span class="co"># outcomes (W10) </span></span>
+<span id="cb7-292"><a href="#cb7-292" aria-hidden="true" tabindex="-1"></a>    like_w10, bookmark_w10, share_w10, report_w10,</span>
+<span id="cb7-293"><a href="#cb7-293" aria-hidden="true" tabindex="-1"></a>    <span class="co"># party id</span></span>
+<span id="cb7-294"><a href="#cb7-294" aria-hidden="true" tabindex="-1"></a>    party_id_cdu_w10,party_id_spd_w10,party_id_afd_w10,</span>
+<span id="cb7-295"><a href="#cb7-295" aria-hidden="true" tabindex="-1"></a>    party_id_afd_w10,party_id_gruene_w10,party_id_fdp_w10,</span>
+<span id="cb7-296"><a href="#cb7-296" aria-hidden="true" tabindex="-1"></a>    party_id_linke_w10,party_id_linke_w10,party_id_bsw_w10,</span>
+<span id="cb7-297"><a href="#cb7-297" aria-hidden="true" tabindex="-1"></a>    <span class="co"># outcomes (W10)</span></span>
+<span id="cb7-298"><a href="#cb7-298" aria-hidden="true" tabindex="-1"></a>    w10_like_political_emotion, w10_book_political_emotion,</span>
+<span id="cb7-299"><a href="#cb7-299" aria-hidden="true" tabindex="-1"></a>    w10_share_political_emotion, w10_report_political_emotion</span>
+<span id="cb7-300"><a href="#cb7-300" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span></span>
+<span id="cb7-301"><a href="#cb7-301" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rename_with</span>(tolower)</span>
+<span id="cb7-302"><a href="#cb7-302" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-303"><a href="#cb7-303" aria-hidden="true" tabindex="-1"></a>df <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span></span>
+<span id="cb7-304"><a href="#cb7-304" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-305"><a href="#cb7-305" aria-hidden="true" tabindex="-1"></a>    <span class="co"># TikTok_User (1=Ja, 2=Nein, 3=kenne TikTok nicht)</span></span>
+<span id="cb7-306"><a href="#cb7-306" aria-hidden="true" tabindex="-1"></a>    <span class="at">tiktok_user_yes =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-307"><a href="#cb7-307" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">1</span>L <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-308"><a href="#cb7-308" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">2</span>L, <span class="dv">3</span>L) <span class="sc">~</span> <span class="dv">0</span>L,</span>
+<span id="cb7-309"><a href="#cb7-309" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_integer_</span></span>
+<span id="cb7-310"><a href="#cb7-310" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-311"><a href="#cb7-311" aria-hidden="true" tabindex="-1"></a>    <span class="at">tiktok_user_no =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-312"><a href="#cb7-312" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-313"><a href="#cb7-313" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>L, <span class="dv">3</span>L) <span class="sc">~</span> <span class="dv">0</span>L,</span>
+<span id="cb7-314"><a href="#cb7-314" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span> <span class="sc">~</span> <span class="cn">NA_integer_</span></span>
+<span id="cb7-315"><a href="#cb7-315" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-316"><a href="#cb7-316" aria-hidden="true" tabindex="-1"></a>    <span class="co"># TikTok_Potential (asked only if tik_tok_user == 2)</span></span>
+<span id="cb7-317"><a href="#cb7-317" aria-hidden="true" tabindex="-1"></a>    <span class="co"># 1=Ja, 2=Nein; NA when not asked (has account or doesn’t know TikTok)</span></span>
+<span id="cb7-318"><a href="#cb7-318" aria-hidden="true" tabindex="-1"></a>    <span class="at">tiktok_potential_yes =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-319"><a href="#cb7-319" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">&amp;</span> tiktok_potential <span class="sc">==</span> <span class="dv">1</span>L <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-320"><a href="#cb7-320" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">&amp;</span> tiktok_potential <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">~</span> <span class="dv">0</span>L,</span>
+<span id="cb7-321"><a href="#cb7-321" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>L, <span class="dv">3</span>L)                  <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-322"><a href="#cb7-322" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>                                          <span class="sc">~</span> <span class="cn">NA_integer_</span></span>
+<span id="cb7-323"><a href="#cb7-323" aria-hidden="true" tabindex="-1"></a>    ),</span>
+<span id="cb7-324"><a href="#cb7-324" aria-hidden="true" tabindex="-1"></a>    <span class="at">tiktok_potential_no =</span> <span class="fu">case_when</span>(</span>
+<span id="cb7-325"><a href="#cb7-325" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">&amp;</span> tiktok_potential <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">~</span> <span class="dv">1</span>L,</span>
+<span id="cb7-326"><a href="#cb7-326" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">==</span> <span class="dv">2</span>L <span class="sc">&amp;</span> tiktok_potential <span class="sc">==</span> <span class="dv">1</span>L <span class="sc">~</span> <span class="dv">0</span>L,</span>
+<span id="cb7-327"><a href="#cb7-327" aria-hidden="true" tabindex="-1"></a>      tiktok_user <span class="sc">%in%</span> <span class="fu">c</span>(<span class="dv">1</span>L, <span class="dv">3</span>L)                  <span class="sc">~</span> <span class="cn">NA_integer_</span>,</span>
+<span id="cb7-328"><a href="#cb7-328" aria-hidden="true" tabindex="-1"></a>      <span class="cn">TRUE</span>                                          <span class="sc">~</span> <span class="cn">NA_integer_</span></span>
+<span id="cb7-329"><a href="#cb7-329" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb7-330"><a href="#cb7-330" aria-hidden="true" tabindex="-1"></a>  )  <span class="sc">%&gt;%</span> <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(treated_w9)) <span class="sc">|&gt;</span></span>
+<span id="cb7-331"><a href="#cb7-331" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(</span>
+<span id="cb7-332"><a href="#cb7-332" aria-hidden="true" tabindex="-1"></a>   <span class="at">attrit =</span> <span class="fu">ifelse</span>(w9_w10 <span class="sc">==</span> <span class="dv">1</span>, <span class="dv">0</span>, <span class="dv">1</span>) <span class="co"># Define outcome (1 = attrited, 0 = stayed)</span></span>
+<span id="cb7-333"><a href="#cb7-333" aria-hidden="true" tabindex="-1"></a>   )</span>
+<span id="cb7-334"><a href="#cb7-334" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb7-335"><a href="#cb7-335" aria-hidden="true" tabindex="-1"></a>df <span class="sc">|&gt;</span> <span class="fu">write_rds</span>(<span class="st">&quot;data/df.rds&quot;</span>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
