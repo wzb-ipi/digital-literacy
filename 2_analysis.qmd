@@ -269,7 +269,7 @@ build_cor_df <- function(df, wave_label) {
 }
 
 
-
+# Main anlaysis function clusters by ID and fixed effects by video
 # Run feols by group and return tidied coefficients with metadata
 run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
   feols(
@@ -297,7 +297,7 @@ datasets <- list(
 individual_df <- 
   left_join(
   datasets$wave_9 |> group_by(ID) |> 
-  summarize(Z9 = mean(workshop_Treatment, na.rm = TRUE),
+  summarize(workshop = mean(workshop_Treatment, na.rm = TRUE),
             afd9 = mean(party_preference_afd, na.rm = TRUE),
             cdu9 = mean(party_preference_cdu, na.rm = TRUE),
             linke9 = mean(party_preference_linke, na.rm = TRUE),
@@ -834,9 +834,9 @@ fig_attrit_interaction
 #| results: asis
 #| include: false
 party_support <- list(
-  lm_robust(afd10 ~ afd9 * Z9, data = individual_df),
-  lm_robust(cdu10 ~ cdu9 * Z9, data = individual_df),
-  lm_robust(linke10 ~ linke9 * Z9, data = individual_df)
+  lm_robust(afd10 ~ afd9 * workshop, data = individual_df),
+  lm_robust(cdu10 ~ cdu9 * workshop, data = individual_df),
+  lm_robust(linke10 ~ linke9 * workshop, data = individual_df)
   )
 
 party_support |> texreg::htmlreg()
@@ -847,7 +847,7 @@ party_support |> texreg::htmlreg()
 #| label: analysis-party-support-arrows
 # Calculate mean party support by treatment group for arrow plot
 arrow_data <- individual_df |> 
-  group_by(Z9) |> 
+  group_by(workshop) |> 
   summarize(
     afd_w9 = mean(afd9, na.rm = TRUE),
     afd_w10 = mean(afd10, na.rm = TRUE),
@@ -864,7 +864,7 @@ arrow_data <- individual_df |>
     bsw_w9 = mean(bsw9, na.rm = TRUE),
     bsw_w10 = mean(bsw10, na.rm = TRUE)
   ) |> 
-  mutate(treatment = ifelse(Z9 == 1, "Treatment", "Control"))
+  mutate(treatment = ifelse(workshop == 1, "Treatment", "Control"))
 
 # Reshape to long format for plotting
 arrow_long <- arrow_data |> 
@@ -935,12 +935,12 @@ names(party_codes) = c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "
 change_models <-
   party_codes |>
   lapply(function(party) {
-    paste0(party, "10 ~ Z9 * ", party, "9_demean") |>
+    paste0(party, "10 ~ workshop * ", party, "9_demean") |>
       as.formula() |>
       lm_robust(data = individual_df) |>
       tidy() } ) |>
   bind_rows(.id = "party") |>
-  filter(term == "Z9")
+  filter(term == "workshop")
       
 # Create  plot with confidence intervals
 plot_change <- function(
