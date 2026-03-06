@@ -38,6 +38,11 @@ v_datapaths <- c(
   "wave_10" = paste0(data_path, "wave_10/Video_reshaped.dta")
 )
 
+
+df_w9 <- read_dta(paste0(
+  data_path, 
+  "/wave_9/Full-Launch/115522 HU Berlin Vorstudie SCRIPTS Science Impftracker Welle 9 - final2_incl_matching_and_w6_w8_info.dta" ))
+
 # Edit figure labels here
 strategies <- 
   c("political\n(emotional)", "political\n(neutral)")
@@ -125,5 +130,42 @@ labels_df <-
   distinct()
 
 labels_df |> head() |> kable()
+
+```
+
+# Propensity to vote data
+
+```{r}
+
+# Scale 0 - 1
+clean_ptv <- function(x, demean = FALSE) {
+  x <- as.numeric(x)
+  ifelse(x %in% 99, NA_real_, x)
+  if(demean) x <- x - mean(x, na.rm = TRUE)
+  x/10
+}
+
+df_w9_ptv <- 
+  df_w9 |>
+  select(record_w9,
+         starts_with("PTV_GLESr"), starts_with("PTV_Posterior"),
+         workshop = workshop_Treatment) |>
+  mutate(
+    ptv_pre_cdu    = clean_ptv(PTV_GLESr1, demean = TRUE),      # "CDU/ CSU"
+    ptv_pre_spd    = clean_ptv(PTV_GLESr3, demean = TRUE),
+    ptv_pre_linke  = clean_ptv(PTV_GLESr4, demean = TRUE),
+    ptv_pre_gruene = clean_ptv(PTV_GLESr5, demean = TRUE),
+    ptv_pre_fdp    = clean_ptv(PTV_GLESr6, demean = TRUE),
+    ptv_pre_afd    = clean_ptv(PTV_GLESr7, demean = TRUE),
+    ptv_pre_bsw    = clean_ptv(PTV_GLESr8, demean = TRUE),
+    ptv_post_cdu    = clean_ptv(PTV_Posteriorr1),   # "CDU/ CSU"
+    ptv_post_spd    = clean_ptv(PTV_Posteriorr3),
+    ptv_post_linke  = clean_ptv(PTV_Posteriorr4),
+    ptv_post_gruene = clean_ptv(PTV_Posteriorr5),
+    ptv_post_fdp    = clean_ptv(PTV_Posteriorr6),
+    ptv_post_afd    = clean_ptv(PTV_Posteriorr7),
+    ptv_post_bsw    = clean_ptv(PTV_Posteriorr8))
+
+write_rds(df_w9_ptv, "data/df_w9_ptv.rds")
 
 ```

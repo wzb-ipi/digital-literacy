@@ -21,7 +21,22 @@ execute:
 #| label: analysis-setup-packages
 
 # Load packages
-pacman::p_load(fixest, tidyverse, DeclareDesign, haven, knitr, broom, ggh4x, ellipse, ggrepel)
+pacman::p_load(
+  forcats,
+  scales,
+  fixest,
+  tidyverse,
+  DeclareDesign,
+  haven,
+  knitr,
+  broom,
+  ggh4x,
+  ellipse,
+  ggrepel,
+  texreg,
+  ggalluvial,
+  scales
+)
 
 ```
 
@@ -105,6 +120,290 @@ scale_color_tiktok <- function() {
   scale_color_discrete()
 }
 
+party_label <- function(code) {
+  dplyr::case_when(
+    code == "afd" ~ "AfD",
+    code == "cdu" ~ "CDU/CSU",
+    code == "linke" ~ "Linke",
+    code == "spd" ~ "SPD",
+    code == "gruene" ~ "Grüne",
+    code == "fdp" ~ "FDP",
+    code == "bsw" ~ "BSW",
+    TRUE ~ code
+  )
+}
+
+# Party identification transition helpers
+build_pid_lodes <- function(df_input) {
+  labs <- c(
+    cdu = "CDU/CSU",
+    spd = "SPD",
+    gruene = "Grüne",
+    fdp = "FDP",
+    linke = "Linke",
+    afd = "AfD",
+    bsw = "BSW",
+    none = "Non-Voters",
+    other = "Other"
+  )
+
+  from <- df_input |>
+    select(id_w9, starts_with("party_id_") & ends_with("_w9")) |>
+    pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
+    filter(val == 1) |>
+    transmute(
+      id_w9,
+      from_party = recode(
+        sub("^party_id_(.*)_w9$", "\\1", var),
+        !!!labs
+      )
+    )
+
+  to <- df_input |>
+    select(id_w9, starts_with("party_id_") & ends_with("_w10")) |>
+    pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
+    filter(val == 1) |>
+    transmute(
+      id_w9,
+      to_party = recode(
+        sub("^party_id_(.*)_w10$", "\\1", var),
+        !!!labs
+      )
+    )
+
+  transitions_indiv <- inner_join(from, to, by = "id_w9")
+
+  transitions <- transitions_indiv |>
+    count(`Wave 9` = from_party, `Wave 10` = to_party, name = "Freq")
+
+  totN <- sum(transitions$Freq)
+
+  share_w9 <- transitions |>
+    group_by(`Wave 9`) |>
+    summarise(s9 = sum(Freq) / totN, .groups = "drop")
+
+  share_w10 <- transitions |>
+    group_by(`Wave 10`) |>
+    summarise(s10 = sum(Freq) / totN, .groups = "drop")
+
+  net_pp <- share_w10 |>
+    left_join(share_w9, by = c("Wave 10" = "Wave 9")) |>
+    mutate(
+      delta_pp = (s10 - s9) * 100,
+      label_right = sprintf("%s\n(%+0.2f pp)", `Wave 10`, delta_pp)
+    ) |>
+    select(`Wave 10`, label_right)
+
+  lodes <- transitions |>
+    mutate(Share = Freq / totN) |>
+    to_lodes_form(axes = 1:2, id = "alluvium") |>
+    mutate(
+      x = factor(x, levels = c("Wave 9", "Wave 10")),
+      stratum_lab = ifelse(
+        x == "Wave 10",
+        net_pp$label_right[match(stratum, net_pp$`Wave 10`)],
+        as.character(stratum)
+      )
+    )
+
+  party_cols <- c(
+    "CDU/CSU" = "#000000",
+    "SPD" = "#E3000F",
+    "Grüne" = "#0DB02B",
+    "FDP" = "#FFED00",
+    "Linke" = "#E2382A",
+    "AfD" = "#009EE0",
+    "BSW" = "#18A19A"
+  )
+
+  list(lodes = lodes, party_cols = party_cols)
+}
+
+plot_pid_alluvial <- function(lodes, party_cols, title_text) {
+  ggplot(
+    lodes,
+    aes(
+      x = x,
+      stratum = stratum,
+      alluvium = alluvium,
+      y = Share,
+      fill = stratum,
+      label = stratum_lab
+    )
+  ) +
+    geom_alluvium(alpha = 0.7, color = NA, knot.pos = 0.4) +
+    geom_stratum(fill = "white", color = "black", size = 0.3) +
+    geom_text(stat = "stratum", size = 4) +
+    scale_fill_manual(values = party_cols, guide = "none") +
+    scale_x_discrete(
+      labels = c("Wave 9", "Wave 10"),
+      expand = c(0.05, 0.05)
+    ) +
+    labs(
+      x = NULL,
+      y = NULL,
+      title = title_text
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      plot.title = element_text(hjust = 0.5, face = "bold"),
+      panel.grid = element_blank(),
+      axis.text.y = element_blank()
+    )
+}
+
+# Build correlation data for a single wave and treatment status
+build_cor_df <- function(df, wave_label) {
+  groups <- list(
+    list(treat = "Treated", data = df |> filter(workshop_Treatment == 1)),
+    list(treat = "Control", data = df |> filter(workshop_Treatment == 0))
+  )
+  purrr::map_df(groups, function(x) {
+    df_sel <- x$data |> select(all_of(v_outcomes))
+    colnames(df_sel) <- names(v_outcomes)
+    cmat <- cor(df_sel, use = "pairwise.complete.obs")
+    as.data.frame(as.table(cmat)) |>
+      rename(var1 = Var1, var2 = Var2, r = Freq) |>
+      mutate(treat = x$treat, wave = wave_label)
+  })
+}
+
+# Attrition helpers
+get_interaction <- function(data, v, treat_col = "treated_w9", outcome = "attrit") {
+  f <- as.formula(paste0(outcome, " ~ ", treat_col, " * ", v))
+  fit <- lm(f, data = data)
+  coefs <- summary(fit)$coef
+  rname <- intersect(
+    rownames(coefs),
+    c(
+      paste0(treat_col, ":", v),
+      paste0(v, ":", treat_col)
+    )
+  )
+  if (!length(rname)) {
+    return(NULL)
+  }
+  est <- coefs[rname, "Estimate"]
+  se <- coefs[rname, "Std. Error"]
+  p <- coefs[rname, "Pr(>|t|)"]
+  data.frame(
+    variable = v,
+    estimate = est,
+    std.error = se,
+    p.value = p,
+    conf.low = est - 1.96 * se,
+    conf.high = est + 1.96 * se,
+    n = stats::nobs(fit)
+  )
+}
+
+compute_attrition_results <- function(data, covariates, treat_col = "treated_w9", outcome = "attrit") {
+  do.call(
+    rbind,
+    lapply(
+      covariates,
+      function(v) {
+        tryCatch(
+          get_interaction(
+            data = data,
+            v = v,
+            treat_col = treat_col,
+            outcome = outcome
+          ),
+          error = function(e) NULL
+        )
+      }
+    )
+  )
+}
+
+# English labels for covariates (matches df after tolower)
+labels_en <- c(
+  # basics
+  alter = "Age",
+  geschlecht = "Gender",
+  citysize = "City size",
+
+  # region binaries & state dummies
+  east = "East (vs West)",
+  saxony = "Saxony (state dummy)",
+  state_baden_wuerttemberg = "State: Baden-Württemberg",
+  state_bayern = "State: Bavaria",
+  state_berlin = "State: Berlin",
+  state_brandenburg = "State: Brandenburg",
+  state_bremen = "State: Bremen",
+  state_hamburg = "State: Hamburg",
+  state_hessen = "State: Hesse",
+  state_mecklenburg_vorpommern = "State: Mecklenburg–Western Pomerania",
+  state_niedersachsen = "State: Lower Saxony",
+  state_nordrhein_westfalen = "State: North Rhine–Westphalia",
+  state_rheinland_pfalz = "State: Rhineland–Palatinate",
+  state_saarland = "State: Saarland",
+  state_sachsen = "State: Saxony",
+  state_sachsen_anhalt = "State: Saxony-Anhalt",
+  state_schleswig_holstein = "State: Schleswig-Holstein",
+  state_thueringen = "State: Thuringia",
+
+  # urbanization binaries
+  urban_ballungsraum = "Urban: Ballungsraum",
+  urban_stadtregion = "Urban: Stadtregion",
+  urban_mittelzentrum = "Urban: Mittelzentrengebiet",
+  urban_high = "Urban (1\u20132) vs Mittelzentrum (3)",
+
+  # social media (post-lowercase names)
+  video_userfacebook = "Uses Facebook (video)",
+  video_usertiktok = "Uses TikTok (video)",
+  video_usersnapchat = "Uses Snapchat (video)",
+  video_userpinterest = "Uses Pinterest (video)",
+  video_userx_ehem_twitter = "Uses X/Twitter (video)",
+  video_usertwitch = "Uses Twitch (video)",
+
+  # attitudes
+  politikinteresse = "Political interest",
+  competence = "Perceived competence",
+  lr = "Left\u2013Right ideology",
+
+  # party ID (w9)
+  party_id_cdu_w9 = "Party ID: CDU/CSU",
+  party_id_spd_w9 = "Party ID: SPD",
+  party_id_afd_w9 = "Party ID: AfD",
+  party_id_gruene_w9 = "Party ID: Greens",
+  party_id_fdp_w9 = "Party ID: FDP",
+  party_id_linke_w9 = "Party ID: The Left",
+  party_id_bsw_w9 = "Party ID: BSW",
+
+  # PTV pre (w9)
+  ptv_cdu_w9_pre = "PTV CDU/CSU (pre)",
+  ptv_spd_w9_pre = "PTV SPD (pre)",
+  ptv_linke_w9_pre = "PTV The Left (pre)",
+  ptv_gruene_w9_pre = "PTV Greens (pre)",
+  ptv_fdp_w9_pre = "PTV FDP (pre)",
+  ptv_afd_w9_pre = "PTV AfD (pre)",
+  ptv_bsw_w9_pre = "PTV BSW (pre)",
+
+  # other covariates
+  prior_performance_general_2 = "Perceived gov't performance (prior)",
+  solidaritat = "Solidarity",
+  sozialer_zusammenhalt = "Social cohesion",
+  migration = "Immigration attitudes",
+
+  # TikTok splits
+  tiktok_user_yes = "Current TikTok user",
+  tiktok_user_no = "Not a TikTok user",
+  tiktok_potential_yes = "Open to get a TikTok account",
+  tiktok_potential_no = "Not open to get a TikTok account",
+
+  # sociodemographics
+  beruflicher_status = "Employment status",
+  berufliche_stellung = "Occupational position",
+  bildung_schulisch = "School education",
+  bildung_beruflich = "Vocational education",
+  eigene_kinder = "Has children",
+  haushaltsgrobe = "Household size",
+  migrationshintergrund_eltern = "Parental migration background",
+  haushaltseinkommen = "Household income"
+)
+
 # Run feols by group and return tidied coefficients with metadata
 run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
   feols(
@@ -128,6 +427,7 @@ datasets <- list(
   wave_10 = read_rds("data/wave_10.rds")
 )
 
+# Defined at individual level
 individual_df <- 
   left_join(
   datasets$wave_9 |> group_by(ID) |> 
@@ -155,7 +455,18 @@ individual_df <-
             liker10 = mean(videoLikep1r, na.rm = TRUE),
             n10 = n())
   ) |> 
-  mutate(missing = is.na(Z10))  
+  ungroup() |> 
+  mutate(missing = is.na(Z10))  |>
+  mutate(
+    afd9_demean = afd9 - mean(afd9, na.rm = TRUE),
+    cdu9_demean = cdu9 - mean(cdu9, na.rm = TRUE),
+    linke9_demean = linke9 - mean(linke9, na.rm = TRUE),
+    spd9_demean = spd9 - mean(spd9, na.rm = TRUE),
+    gruene9_demean = gruene9 - mean(gruene9, na.rm = TRUE),
+    fdp9_demean = fdp9 - mean(fdp9, na.rm = TRUE),
+    bsw9_demean = bsw9 - mean(bsw9, na.rm = TRUE))
+    
+
 ```
 
 
@@ -435,7 +746,9 @@ for (D in c("wave_9", "wave_10")) {
 ```
 
 
-### f_IIc3b: by partisanship and party (alternate)
+###  by partisanship and party (alternate)
+
+suffix: `f_IIc3b`
 
 This alternate visualization repeats f_IIc3 but shows only supporter yes/no levels.
 
@@ -507,11 +820,10 @@ for (D in c("wave_9", "wave_10")) {
 
 
 
-## Attrition analysis
+## Appendix I: Attrition analysis
 
-## Downstream effects on AfD support 
+## Appendix J: Downstream effects on AfD support 
 
-## Maintained support?
 
 ```{r}
 #| label: analysis-maintained-support
@@ -595,144 +907,198 @@ p_arrows <- ggplot(arrow_long, aes(x = w9, y = w10)) +
   theme(legend.title = element_blank())
 
 print(p_arrows)
+
+ggsave(
+  filename = file.path(fig_dir, "party_support_arrows.pdf"),
+  plot = p_arrows,
+  device = cairo_pdf
+)
 ```
 
-```{r}
-#| label: analysis-did-plot-example
-#| eval: false
-# Create difference-in-differences plot
-# Calculate change from W9 to W10 for each party and treatment group
-did_data <- arrow_long |> 
-  mutate(change = w10 - w9) |> 
-  select(party, treatment, change) |> 
-  pivot_wider(names_from = treatment, values_from = change) |> 
-  mutate(
-    did_effect = Treatment - Control,  # Difference-in-difference
-    party_label = party
-  )
-
-# Create the DiD plot
-p_did <- ggplot(did_data, aes(x = reorder(party, did_effect), y = did_effect)) +
-  geom_col(aes(fill = ifelse(did_effect > 0, "Positive", "Negative")), 
-           alpha = 0.7, width = 0.6) +
-  geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_text(aes(label = sprintf("%.3f", did_effect)), 
-            hjust = ifelse(did_data$did_effect > 0, -0.1, 1.1), 
-            size = 3.5) +
-  scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#DC143C")) +
-  labs(
-    x = "Party",
-    y = "Difference-in-Difference Effect",
-    title = "Treatment Effects on Party Support Changes",
-    subtitle = "DiD = (Treatment W9→W10 change) - (Control W9→W10 change)",
-    caption = "Positive values indicate treatment increased support change relative to control"
-  ) +
-  theme_bw() +
-  theme(
-    legend.title = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1),
-    plot.subtitle = element_text(size = 9)
-  ) +
-  coord_flip()
-
-print(p_did)
-```
 
 ```{r}
 #| label: analysis-did-ci-plot
+
 # Create DiD plot with confidence intervals using simple regressions
 # Fit simple DiD regressions for each party (change in support)
-did_models <- map_dfr(c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw"), function(party) {
-  
-  # Create party-specific data with change in support
-  party_data <- individual_df |> 
-    select(ID, Z9, 
-           w9 = paste0(party, "9"), 
-           w10 = paste0(party, "10")) |> 
-    filter(!is.na(w9) & !is.na(w10)) |> 
-    mutate(w9_demean = w9 - mean(w9))  # Change in support from W9 to W10
-  
-  # Fit simple DiD model: change ~ treatment
-  model <- lm(w10 ~ Z9*w9_demean, data = party_data)
-  
-  # Extract treatment coefficient (DiD effect)
-  coef_summary <- summary(model)$coefficients
-  
-  tibble(
-    party = case_when(
-      party == "afd" ~ "AfD",
-      party == "cdu" ~ "CDU/CSU",
-      party == "linke" ~ "Linke", 
-      party == "spd" ~ "SPD",
-      party == "gruene" ~ "Grüne",
-      party == "fdp" ~ "FDP",
-      party == "bsw" ~ "BSW"
-    ),
-    did_effect = coef_summary["Z9", "Estimate"],
-    se = coef_summary["Z9", "Std. Error"],
-    conf_low = did_effect - 1.96 * se,
-    conf_high = did_effect + 1.96 * se,
-    p_value = coef_summary["Z9", "Pr(>|t|)"]
-  )
-})
 
+party_codes =  c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw")
+names(party_codes) = c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "BSW")
+
+# this model is ANOVA style; w10 conditioning on w9
+# not using a change score
+
+change_models <-
+  party_codes |>
+  lapply(function(party) {
+    paste0(party, "10 ~ Z9 * ", party, "9_demean") |>
+      as.formula() |>
+      lm_robust(data = individual_df) |>
+      tidy() } ) |>
+  bind_rows(.id = "party") |>
+  filter(term == "Z9")
+      
 # Create  plot with confidence intervals
-p_ci <- ggplot(did_models |> filter(!is.na(did_effect)), 
-                   aes(x = reorder(party, did_effect), y = did_effect)) +
-  geom_col(aes(fill = ifelse(did_effect > 0, "Positive", "Negative")), 
+plot_change <- function(
+    results = change_models,
+    subtitle = "Effect of treatment on long term support, conditional on initial support") {
+
+  results   |>
+  ggplot(aes(x = reorder(party, estimate), y = estimate)) +
+  geom_col(aes(fill = ifelse(estimate > 0, "Positive", "Negative")), 
            alpha = 0.7, width = 0.6) +
-  geom_errorbar(aes(ymin = conf_low, ymax = conf_high), 
+  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
                 width = 0.2, color = "black", size = 0.8) +
   geom_hline(yintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_text(aes(label = sprintf("%.3f\n(p=%.3f)", did_effect, p_value)), 
-            hjust = ifelse(did_models$did_effect > 0, -0.1, 1.1), 
+  geom_text(aes(label = sprintf("%.3f\n(p=%.3f)", estimate, p.value)), 
             size = 2.8) +
   scale_fill_manual(values = c("Positive" = "#2E8B57", "Negative" = "#DC143C")) +
   labs(
     x = "Party",
-    y = "Change in support",
+    y = "Change in support (outcome on 0 to 1 scale)",
     title = "Treatment Effects (with 95% CI)",
-    subtitle = "Effect of treatment on long term support, conditional on initial support",
+    subtitle = subtitle,
     caption = "Error bars show 95% confidence intervals."
   ) +
   theme_bw() +
   theme(
     legend.title = element_blank(),
-    axis.text.x = element_text(angle = 45, hjust = 1),
     plot.subtitle = element_text(size = 9),
     plot.caption = element_text(size = 8)
   ) +
   coord_flip()
+}
 
-print(p_ci)
+changew9w10 <- plot_change(
+  results = change_models,
+  subtitle = "Effect of treatment on long term support, conditional on initial support")
+
+print(changew9w10)
+
+ggsave(
+  filename = file.path(fig_dir, "party_support_did_ci.pdf"),
+  plot = changew9w10,
+  device = cairo_pdf
+)
 
 ```
 
-## Changes in Party Identification
 
-## Correlations between short term and long term outcomes
+## short term political
+
+```{r}
+#| label: analysis-shortterm-plot
+
+df_w9_ptv <- read_rds("data/df_w9_ptv.rds")
+
+short_models <- 
+  
+  party_codes |> 
+  lapply(function(party) {
+    paste0("ptv_post_", party, " ~ workshop * ptv_pre_", party) |>
+    as.formula() |>
+    lm_robust(data = df_w9_ptv) |> 
+    tidy()}
+) |> bind_rows(.id = "party") |>
+  filter(term == "workshop")
+
+# Create  plot with confidence intervals
+p_ci <- 
+  changew9w10 <- plot_change(
+  results = short_models,
+  subtitle = "Effect of treatment on short term support, conditional on initial support")
+
+  
+print(p_ci)
+
+ggsave(
+  filename = file.path(fig_dir, "party_support_ptv_shortterm.pdf"),
+  plot = p_ci,
+  device = cairo_pdf
+)
+
+```
+
+
+
+
+
+## Appendix K: Changes in Party Identification
+
+```{r, eval = FALSE}
+#| label: analysis-pid-change-overall
+
+options(scipen = 999)  # discourage scientific notation
+
+pid_overall <- build_pid_lodes(df)
+
+fig_pid_change <- plot_pid_alluvial(
+  lodes = pid_overall$lodes,
+  party_cols = pid_overall$party_cols,
+  title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
+)
+
+print(fig_pid_change)
+ggsave(
+  filename = file.path(fig_dir, "fig_pid_change.pdf"),
+  plot = fig_pid_change,
+  device = cairo_pdf
+)
+```
+
+
+## within treatment
+
+```{r, eval = FALSE}
+#| label: analysis-pid-change-treated
+
+pid_treat <- build_pid_lodes(df |> filter(treated_w9 == 1))
+
+fig_pid_change_treat <- plot_pid_alluvial(
+  lodes = pid_treat$lodes,
+  party_cols = pid_treat$party_cols,
+  title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
+)
+
+print(fig_pid_change_treat)
+ggsave(
+  filename = file.path(fig_dir, "fig_pid_change_treat.pdf"),
+  plot = fig_pid_change_treat,
+  device = cairo_pdf
+)
+```
+
+## within control
+
+```{r, eval = FALSE}
+#| label: analysis-pid-change-control
+
+pid_control <- build_pid_lodes(df |> filter(treated_w9 == 0))
+
+fig_pid_change_control <- plot_pid_alluvial(
+  lodes = pid_control$lodes,
+  party_cols = pid_control$party_cols,
+  title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
+)
+
+print(fig_pid_change_control)
+ggsave(
+  filename = file.path(fig_dir, "fig_pid_change_control.pdf"),
+  plot = fig_pid_change_control,
+  device = cairo_pdf
+)
+
+```
+
+
+## Appendix L: Correlations between short term and long term outcomes
 
 Correlation structure among outcomes by treatment and wave. Ellipses indicate sign and strength; red/blue color encodes sign.
 
 ```{r}
 #| label: analysis-outcome-correlations
-# Build a long data frame of correlations by wave and treatment
-build_cor_df <- function(df, wave_label) {
-  groups <- list(
-    list(treat = "Treated", data = df |> filter(workshop_Treatment == 1)),
-    list(treat = "Control", data = df |> filter(workshop_Treatment == 0))
-  )
-  purrr::map_df(groups, function(x) {
-    df_sel <- x$data |> select(all_of(v_outcomes))
-    colnames(df_sel) <- names(v_outcomes)
-    cmat <- cor(df_sel, use = "pairwise.complete.obs")
-    as.data.frame(as.table(cmat)) |>
-      rename(var1 = Var1, var2 = Var2, r = Freq) |>
-      mutate(treat = x$treat, wave = wave_label)
-  })
-}
 
-# Compute correlations for both waves
+# Compute correlations for both waves (within wave, by treatment)
 cor_w9 <- build_cor_df(datasets$wave_9, "Short-term")
 cor_w10 <- build_cor_df(datasets$wave_10, "Long-term")
 
@@ -813,3 +1179,89 @@ ggsave(
   device = cairo_pdf
 )
 ```
+
+
+## Attrition
+
+```{r}
+#| label: analysis-attrition
+#| message: false
+#| warning: false
+#| eval: false
+
+results <- compute_attrition_results(
+  data = df,
+  covariates = covs,
+  treat_col = "treated_w9",
+  outcome = "attrit"
+)
+
+# Apply labels & ordering
+res_plot <- na.omit(results)
+res_plot <- res_plot[order(res_plot$estimate), ]
+res_plot$label <- labels_en[res_plot$variable]
+res_plot$label[is.na(res_plot$label)] <- res_plot$variable
+res_plot$label <- factor(res_plot$label, levels = res_plot$label)
+
+fig_attrit_interaction <- ggplot(res_plot, aes(x = estimate, y = label)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0) +
+  geom_point() +
+  labs(
+    title = "Treatment \u00d7 Covariate Interactions on Attrition (LPM)",
+    subtitle = "Points: interaction of treated with covariate; bars: 95% CI",
+    x = "Interaction estimate (\u0394 probability of attrition)",
+    y = NULL
+  ) +
+  theme_bw()
+
+print(fig_attrit_interaction)
+ggsave(
+  filename = file.path(fig_dir, "fig_attrit_interaction.pdf"),
+  plot = fig_attrit_interaction,
+  device = cairo_pdf
+)
+
+```
+
+
+## Comment classification
+
+
+```{r ,message=FALSE,warning=FALSE}
+comments_df <-read.csv("data/comment_classification.csv")
+
+
+# Desired order
+levels_vec <- c(
+  "0 = setup skepticism",
+  "1 = platform-focused",
+  "2 = content-focused",
+  "3 = other/unclear"
+)
+
+comments_plot <- comments_df %>%
+  mutate(
+    scale_label = fct_explicit_na(scale_label, na_level = "NA"),
+    scale_label = fct_relevel(scale_label, levels_vec, after = 0) # keep 0–3 in order; "NA" (if present) goes last
+  ) %>%
+  count(scale_label, name = "n") %>%
+  mutate(pct = n / sum(n)) |>
+  ggplot(aes(x = scale_label, y = pct)) +
+  geom_col(width = 0.7) +
+  geom_text(aes(label = percent(pct, accuracy = 0.1)),
+            vjust = -0.25, size = 4) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    x = NULL, y = "Share of comments",
+    title = "Comment classification (percentage of total)"
+  ) +
+  theme_bw(base_size = 13) +
+  theme(panel.grid.major.x = element_blank())
+
+comments_plot
+ggsave('figs/fig_classification_comments.pdf', width = 8, height = 4)
+
+
+```
+
