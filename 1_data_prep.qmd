@@ -140,7 +140,7 @@ labels_df |> head() |> kable()
 # Scale 0 - 1
 clean_ptv <- function(x, demean = FALSE) {
   x <- as.numeric(x)
-  ifelse(x %in% 99, NA_real_, x)
+  x <- ifelse(x == 99, NA_real_, x)
   if(demean) x <- x - mean(x, na.rm = TRUE)
   x/10
 }
