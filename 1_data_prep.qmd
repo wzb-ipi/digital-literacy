@@ -34,14 +34,18 @@ data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
 pref_var <- "party_preference_"   
 
 v_datapaths <- c(
-  "wave_9"  = paste0(data_path, "wave_9/Full-Launch/Video_reshaped.dta"),
-  "wave_10" = paste0(data_path, "wave_10/Video_reshaped.dta")
+  "wave_9"  = paste0(
+    data_path,
+    "wave_9/Full-Launch/paper_tiktok/3_merged_data/w9_video_reshaped.dta"),
+  "wave_10" = paste0(
+    data_path, 
+    "wave_10/merged/Video_reshaped.dta")
 )
 
+# Wave 9 and 10 combined data
+df_w10 <- 
+  read_dta("../../1_Projects/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
 
-df_w9 <- read_dta(paste0(
-  data_path, 
-  "/wave_9/Full-Launch/115522 HU Berlin Vorstudie SCRIPTS Science Impftracker Welle 9 - final2_incl_matching_and_w6_w8_info.dta" ))
 
 # Edit figure labels here
 strategies <- 
@@ -146,8 +150,8 @@ clean_ptv <- function(x, demean = FALSE) {
 }
 
 df_w9_ptv <- 
-  df_w9 |>
-  select(record_w9,
+  df_w10 |>
+  select(record,
          starts_with("PTV_GLESr"), starts_with("PTV_Posterior"),
          workshop = workshop_Treatment) |>
   mutate(
@@ -168,6 +172,32 @@ df_w9_ptv <-
 
 write_rds(df_w9_ptv, "data/df_w9_ptv.rds")
 
+
+df_w10_ptv <- 
+  df_w10 |>
+  select(record,
+         starts_with("PTV_GLESr"),
+         workshop = workshop_Treatment) |>
+  mutate(
+    ptv_pre_cdu    = clean_ptv(PTV_GLESr1, demean = TRUE),      # "CDU/ CSU"
+    ptv_pre_spd    = clean_ptv(PTV_GLESr3, demean = TRUE),
+    ptv_pre_linke  = clean_ptv(PTV_GLESr4, demean = TRUE),
+    ptv_pre_gruene = clean_ptv(PTV_GLESr5, demean = TRUE),
+    ptv_pre_fdp    = clean_ptv(PTV_GLESr6, demean = TRUE),
+    ptv_pre_afd    = clean_ptv(PTV_GLESr7, demean = TRUE),
+    ptv_pre_bsw    = clean_ptv(PTV_GLESr8, demean = TRUE),
+    ptv_w10_cdu    = clean_ptv(PTV_GLESr1_W),   # "Die CDU/Die CSU" in your data
+    ptv_w10_spd    = clean_ptv(PTV_GLESr3_W),
+    ptv_w10_linke  = clean_ptv(PTV_GLESr4_W),
+    ptv_w10_gruene = clean_ptv(PTV_GLESr5_W),
+    ptv_w10_fdp = clean_ptv(PTV_GLESr6_W),
+    ptv_w10_afd = clean_ptv(PTV_GLESr7_W),
+    ptv_w10_bsw = clean_ptv(PTV_GLESr8_W)
+    )
+
+write_rds(df_w10_ptv, "data/df_w10_ptv.rds")
+
+
 ```
 
 # Attrition data
@@ -179,11 +209,9 @@ code_party_bin <- function(x, codes) {
   ifelse(is.na(x), NA_integer_, as.integer(x %in% codes))
 }
 
-df <- 
-  read_dta("../../1_Projects/Covid Vaccine Allocation/5_writing/Paper 11/Stata do-files/Check_longterm_effects/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
 
 
-df <- df %>%
+df_w10 <- df_w10 %>%
     dplyr::filter(SwitchedToRandom == 1) |>
     filter(!VideoDuration %in% c(-9, NA)) |>
   mutate(
@@ -415,7 +443,7 @@ df <- df %>%
 
 
 
-df <- df %>%
+df_w10 <- df_w10 %>%
   # your select; removed one duplicate column, kept order stable
   dplyr::select(
     `_merge`, ID_W9, 
@@ -475,7 +503,7 @@ df <- df %>%
   ) %>%
   rename_with(tolower)
 
-df <- df %>%
+df_w10 <- df_w10 %>%
   mutate(
     # TikTok_User (1=Ja, 2=Nein, 3=kenne TikTok nicht)
     tiktok_user_yes = case_when(
@@ -507,6 +535,6 @@ df <- df %>%
    attrit = ifelse(w9_w10 == 1, 0, 1) # Define outcome (1 = attrited, 0 = stayed)
    )
 
-df |> write_rds("data/df.rds")
+df_w10 |> write_rds("data/df_w9_w10.rds")
 
 ```

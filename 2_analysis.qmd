@@ -334,7 +334,7 @@ individual_df <-
     
 
 
-df_9_10 <- read_rds("data/df.rds") |>
+df_w9_w10 <- read_rds("data/df_w9_w10.rds") |>
   mutate(citysize = as.numeric(citysize))
 # covariates
 
@@ -395,7 +395,7 @@ labels_en <- c(
   # PTV pre (w9)
   ptv_cdu_w9_pre    = "PTV CDU/CSU (pre)",
   ptv_spd_w9_pre    = "PTV SPD (pre)",
-  ptv_linke_w9_pre  = "PTV The Left (pre)",
+  ptv_linke_w9_pre   = "PTV The Left (pre)",
   ptv_gruene_w9_pre = "PTV Greens (pre)",
   ptv_fdp_w9_pre    = "PTV FDP (pre)",
   ptv_afd_w9_pre    = "PTV AfD (pre)",
@@ -795,7 +795,7 @@ names(covs) <- labels_en
 get_interaction <- function(v) {
   paste0("attrit ~ treated_w9 * ", v) |> 
     as.formula() |>
-    lm_robust(data = df_9_10 |>
+    lm_robust(data = df_w9_w10 |>
                 mutate(across(all_of(v), scale))) |>
     tidy() |>
     filter(grepl(":", term))
@@ -988,7 +988,7 @@ ggsave(
 ```
 
 
-## short term political
+## short term PTV change
 
 ```{r}
 #| label: analysis-shortterm-plot
@@ -1007,17 +1007,58 @@ short_models <-
   filter(term == "workshop")
 
 # Create  plot with confidence intervals
-p_ci <- 
-  changew9w10 <- plot_change(
+ptv_short <- 
+  plot_change(
   results = short_models,
   subtitle = "Effect of treatment on short term support, conditional on initial support")
 
   
-print(p_ci)
+print(ptv_short)
 
 ggsave(
   filename = file.path(fig_dir, "party_support_ptv_shortterm.pdf"),
-  plot = p_ci,
+  plot = ptv_short,
+  device = cairo_pdf
+)
+
+```
+
+
+
+
+
+## long term PTV change
+
+```{r}
+#| label: analysis-longterm-ptv-plot
+
+df_w10_ptv <- read_rds("data/df_w10_ptv.rds")
+
+lm_robust(ptv_w10_afd ~ workshop * ptv_pre_afd, data = df_w10_ptv)
+
+long_models <- 
+  
+  party_codes |> 
+  lapply(function(party) {
+    paste0("ptv_w10_", party, " ~ workshop * ptv_pre_", party) |>
+    as.formula() |>
+    lm_robust(data = df_w10_ptv) |> 
+    tidy()}
+) |> bind_rows(.id = "party") |>
+  filter(term == "workshop")
+
+# Create  plot with confidence intervals
+ptv_long <- 
+  plot_change(
+  results = long_models,
+  subtitle = "Effect of treatment on long term PTV, conditional on initial support")
+
+  
+print(ptv_long)
+
+ggsave(
+  filename = file.path(fig_dir, "party_support_ptv_longterm.pdf"),
+  plot = ptv_long,
   device = cairo_pdf
 )
 
@@ -1034,7 +1075,7 @@ ggsave(
 
 options(scipen = 999)  # discourage scientific notation
 
-pid_overall <- build_pid_lodes(df_9_10)
+pid_overall <- build_pid_lodes(df_w9_w10)
 
 fig_pid_change <- plot_pid_alluvial(
   lodes = pid_overall$lodes,
@@ -1056,7 +1097,7 @@ ggsave(
 ```{r}
 #| label: analysis-pid-change-treated
 
-pid_treat <- build_pid_lodes(df_9_10 |> filter(treated_w9 == 1))
+pid_treat <- build_pid_lodes(df_w9_w10 |> filter(treated_w9 == 1))
 
 fig_pid_change_treat <- plot_pid_alluvial(
   lodes = pid_treat$lodes,
@@ -1077,7 +1118,7 @@ ggsave(
 ```{r}
 #| label: analysis-pid-change-control
 
-pid_control <- build_pid_lodes(df_9_10 |> filter(treated_w9 == 0))
+pid_control <- build_pid_lodes(df_w9_w10 |> filter(treated_w9 == 0))
 
 fig_pid_change_control <- plot_pid_alluvial(
   lodes = pid_control$lodes,
