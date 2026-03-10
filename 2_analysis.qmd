@@ -949,17 +949,14 @@ short_models <-
     pre_var <- paste0("ptv_w9_pre_", party)
     post_var <- paste0("ptv_w9_post_", party)
 
-    fml <- paste0(
-      post_var, " ~ workshop * I(",
-      pre_var, " - mean(", pre_var, ", na.rm = TRUE))"
-    ) |>
+    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
       as.formula()
 
     lm_robust(fml, data = df_w9_w10) |>
       tidy()
   }) |>
   bind_rows(.id = "party") |>
-  dplyr::filter(grepl(":", term))
+  dplyr::filter(term == "workshop")
 
 # Create  plot with confidence intervals
 ptv_short <- 
@@ -993,16 +990,14 @@ long_models <-
     post_var <- paste0("ptv_w10_", party)
 
     fml <- paste0(
-      post_var, " ~ workshop * I(",
-      pre_var, " - mean(", pre_var, ", na.rm = TRUE))"
-    ) |>
+      post_var, " ~ workshop * ", pre_var) |>
       as.formula()
 
     lm_robust(fml, data = df_w9_w10) |>
       tidy()
   }) |>
   bind_rows(.id = "party") |>
-  dplyr::filter(grepl(":", term))
+  dplyr::filter(term == "workshop")
 
 # Create  plot with confidence intervals
 ptv_long <- 

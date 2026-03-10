@@ -2438,14 +2438,14 @@ vertical-align: -.125em;
 <span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a>    ),</span>
 <span id="cb8-21"><a href="#cb8-21" aria-hidden="true" tabindex="-1"></a>    <span class="co"># binary indicator: 1 if wave 9 &amp; wave 10, else 0</span></span>
 <span id="cb8-22"><a href="#cb8-22" aria-hidden="true" tabindex="-1"></a>    <span class="at">w9_w10 =</span> <span class="fu">if_else</span>(<span class="st">`</span><span class="at">_merge</span><span class="st">`</span> <span class="sc">==</span> <span class="dv">3</span>, <span class="dv">1</span>L, <span class="dv">0</span>L),</span>
-<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># raw cleaned 0–10 PTVs (99 -&gt; NA)</span></span>
-<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_cdu    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr1),   <span class="co"># note not CDU/CSU </span></span>
-<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_spd    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr3),</span>
-<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_linke  =</span> <span class="fu">clean_ptv</span>(PTV_GLESr4),</span>
-<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_gruene =</span> <span class="fu">clean_ptv</span>(PTV_GLESr5),</span>
-<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_fdp    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr6),</span>
-<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_afd    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr7),</span>
-<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_bsw    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr8),</span>
+<span id="cb8-23"><a href="#cb8-23" aria-hidden="true" tabindex="-1"></a>    <span class="co"># raw cleaned 0–10 PTVs (99 -&gt; NA) PRE VARS ARE DEMEANED</span></span>
+<span id="cb8-24"><a href="#cb8-24" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_cdu    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr1, <span class="at">demean =</span> <span class="cn">TRUE</span>),   <span class="co"># note not CDU/CSU </span></span>
+<span id="cb8-25"><a href="#cb8-25" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_spd    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr3, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-26"><a href="#cb8-26" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_linke  =</span> <span class="fu">clean_ptv</span>(PTV_GLESr4, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-27"><a href="#cb8-27" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_gruene =</span> <span class="fu">clean_ptv</span>(PTV_GLESr5, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-28"><a href="#cb8-28" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_fdp    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr6, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-29"><a href="#cb8-29" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_afd    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr7, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
+<span id="cb8-30"><a href="#cb8-30" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_pre_bsw    =</span> <span class="fu">clean_ptv</span>(PTV_GLESr8, <span class="at">demean =</span> <span class="cn">TRUE</span>),</span>
 <span id="cb8-31"><a href="#cb8-31" aria-hidden="true" tabindex="-1"></a>    </span>
 <span id="cb8-32"><a href="#cb8-32" aria-hidden="true" tabindex="-1"></a>    <span class="co"># post-treatment PTVs (wave 9)</span></span>
 <span id="cb8-33"><a href="#cb8-33" aria-hidden="true" tabindex="-1"></a>    <span class="at">ptv_w9_post_cdu    =</span> <span class="fu">clean_ptv</span>(PTV_Posteriorr1),  <span class="co"># note not  CDU/CSU</span></span>
