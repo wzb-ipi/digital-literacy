@@ -84,10 +84,11 @@ l_partisanship <- list(
   "All" = c(0, 1)
 )
 
-ps <- tibble(
-  parties = c("AfD", "BSW", "CDU/CSU", "FDP", "Grüne", "Linke", "SPD"),
-  party_stub = c("afd", "bsw", "cdu", "fdp", "gruene", "linke", "spd")
-)
+party_codes <-  c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw")
+party_names <- c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "BSW")
+names(party_codes) <- party_names
+names(party_names) <- party_codes
+
 ```
 
 
@@ -120,53 +121,31 @@ scale_color_tiktok <- function() {
   scale_color_discrete()
 }
 
-party_label <- function(code) {
-  dplyr::case_when(
-    code == "afd" ~ "AfD",
-    code == "cdu" ~ "CDU/CSU",
-    code == "linke" ~ "Linke",
-    code == "spd" ~ "SPD",
-    code == "gruene" ~ "Grüne",
-    code == "fdp" ~ "FDP",
-    code == "bsw" ~ "BSW",
-    TRUE ~ code
-  )
-}
 
 # Party identification transition helpers
 build_pid_lodes <- function(df_input) {
-  labs <- c(
-    cdu = "CDU/CSU",
-    spd = "SPD",
-    gruene = "Grüne",
-    fdp = "FDP",
-    linke = "Linke",
-    afd = "AfD",
-    bsw = "BSW",
-    none = "Non-Voters",
-    other = "Other"
-  )
+  labs <- party_names
 
   from <- df_input |>
-    select(id_w9, starts_with("party_id_") & ends_with("_w9")) |>
+    select(id_w9, starts_with("party_id_w9")) |>
     pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
     filter(val == 1) |>
     transmute(
       id_w9,
       from_party = recode(
-        sub("^party_id_(.*)_w9$", "\\1", var),
+        sub("^party_id_w9_(.*)$", "\\1", var),
         !!!labs
       )
     )
 
   to <- df_input |>
-    select(id_w9, starts_with("party_id_") & ends_with("_w10")) |>
+    select(id_w9, starts_with("party_id_w10")) |>
     pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
     filter(val == 1) |>
     transmute(
       id_w9,
       to_party = recode(
-        sub("^party_id_(.*)_w10$", "\\1", var),
+        sub("^party_id_w10_(.*)$", "\\1", var),
         !!!labs
       )
     )
@@ -286,56 +265,17 @@ run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
 # Data 
 
 ```{r}
-#| label: integrity
+#| label: data-imports
 
 datasets <- list(
   wave_9  = read_rds("data/wave_9.rds"),
-  wave_10 = read_rds("data/wave_10.rds")
-)
+  wave_10 = read_rds("data/wave_10.rds"))
 
-# Defined at individual level
-individual_df <- 
-  left_join(
-  datasets$wave_9 |> group_by(ID) |> 
-  summarize(workshop = mean(workshop_Treatment, na.rm = TRUE),
-            afd9 = mean(party_preference_afd, na.rm = TRUE),
-            cdu9 = mean(party_preference_cdu, na.rm = TRUE),
-            linke9 = mean(party_preference_linke, na.rm = TRUE),
-            spd9 = mean(party_preference_spd, na.rm = TRUE),
-            gruene9 = mean(party_preference_gruene, na.rm = TRUE),
-            fdp9 = mean(party_preference_fdp, na.rm = TRUE),
-            bsw9 = mean(party_preference_bsw, na.rm = TRUE),
-            liker9 = mean(videoLikep1r, na.rm = TRUE),
-            n9 = n(),
-            tiktok_user = mean(TikTok_User)),
-  
-  datasets$wave_10 |> group_by(ID) |> 
-  summarize(Z10 = mean(workshop_Treatment, na.rm = TRUE),
-            afd10 = mean(party_preference_afd, na.rm = TRUE),
-            linke10 = mean(party_preference_linke, na.rm = TRUE),
-            cdu10 = mean(party_preference_cdu, na.rm = TRUE),
-            spd10 = mean(party_preference_spd, na.rm = TRUE),
-            gruene10 = mean(party_preference_gruene, na.rm = TRUE),
-            fdp10 = mean(party_preference_fdp, na.rm = TRUE),
-            bsw10 = mean(party_preference_bsw, na.rm = TRUE),
-            liker10 = mean(videoLikep1r, na.rm = TRUE),
-            n10 = n())
-  ) |> 
-  ungroup() |> 
-  mutate(missing = is.na(Z10))  |>
-  mutate(
-    afd9_demean = afd9 - mean(afd9, na.rm = TRUE),
-    cdu9_demean = cdu9 - mean(cdu9, na.rm = TRUE),
-    linke9_demean = linke9 - mean(linke9, na.rm = TRUE),
-    spd9_demean = spd9 - mean(spd9, na.rm = TRUE),
-    gruene9_demean = gruene9 - mean(gruene9, na.rm = TRUE),
-    fdp9_demean = fdp9 - mean(fdp9, na.rm = TRUE),
-    bsw9_demean = bsw9 - mean(bsw9, na.rm = TRUE))
-    
-
-
-df_w9_w10 <- read_rds("data/df_w9_w10.rds") |>
+df_w9_w10  <- read_rds("data/df_w9_w10.rds")|>
   mutate(citysize = as.numeric(citysize))
+
+comments_df <-read.csv("data/comment_classification.csv")
+
 # covariates
 
 # ---- English labels for covariates (matches your df after tolower) ----
@@ -384,22 +324,22 @@ labels_en <- c(
   lr               = "Left–Right ideology",
 
   # party ID (w9)
-  party_id_cdu_w9    = "Party ID: CDU/CSU",
-  party_id_spd_w9    = "Party ID: SPD",
-  party_id_afd_w9    = "Party ID: AfD",
-  party_id_gruene_w9 = "Party ID: Greens",
-  party_id_fdp_w9    = "Party ID: FDP",
-  party_id_linke_w9  = "Party ID: The Left",
-  party_id_bsw_w9    = "Party ID: BSW",
+  party_id_w9_cdu    = "Party ID: CDU/CSU",
+  party_id_w9_spd    = "Party ID: SPD",
+  party_id_w9_afd    = "Party ID: AfD",
+  party_id_w9_gruene = "Party ID: Greens",
+  party_id_w9_fdp    = "Party ID: FDP",
+  party_id_w9_linke  = "Party ID: The Left",
+  party_id_w9_bsw    = "Party ID: BSW",
 
   # PTV pre (w9)
-  ptv_cdu_w9_pre    = "PTV CDU/CSU (pre)",
-  ptv_spd_w9_pre    = "PTV SPD (pre)",
-  ptv_linke_w9_pre   = "PTV The Left (pre)",
-  ptv_gruene_w9_pre = "PTV Greens (pre)",
-  ptv_fdp_w9_pre    = "PTV FDP (pre)",
-  ptv_afd_w9_pre    = "PTV AfD (pre)",
-  ptv_bsw_w9_pre    = "PTV BSW (pre)",
+  ptv_w9_pre_cdu    = "PTV CDU/CSU (pre)",
+  ptv_w9_pre_spd    = "PTV SPD (pre)",
+  ptv_w9_pre_linke  = "PTV The Left (pre)",
+  ptv_w9_pre_gruene = "PTV Greens (pre)",
+  ptv_w9_pre_fdp    = "PTV FDP (pre)",
+  ptv_w9_pre_afd    = "PTV AfD (pre)",
+  ptv_w9_pre_bsw    = "PTV BSW (pre)",
 
   # other covariates
   prior_performance_general_2 = "Perceived gov't performance (prior)",
@@ -487,7 +427,7 @@ for (D in c("wave_9", "wave_10")) {
   for (OG in names(l_outcomegroups)) {
     df_f_IIa <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
-        lapply(ps$parties, function(P) {
+        lapply(names(party_codes), function(P) {
           df_sub <- df |> filter(strategy_2 == S, party == P)
           run_feols_tidy(
             df = df_sub,
@@ -643,7 +583,7 @@ for (D in c("wave_9", "wave_10")) {
     df_f_IIc3 <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(l_partisanship), function(PS)
-          lapply(ps$parties, function(P) {
+          lapply(names(party_codes), function(P) {
             df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
             y <- df_temp[[v_outcomes[Y]]]
             if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
@@ -718,7 +658,7 @@ for (D in c("wave_9", "wave_10")) {
     df_f_IIc3b <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(l_partisanship[1:2]), function(PS)
-          lapply(ps$parties, function(P) {
+          lapply(names(party_codes), function(P) {
             df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
             y <- df_temp[[v_outcomes[Y]]]
             if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
@@ -793,7 +733,7 @@ names(covs) <- labels_en
 
 ## model 
 get_interaction <- function(v) {
-  paste0("attrit ~ treated_w9 * ", v) |> 
+  paste0("attrit ~ workshop * ", v) |> 
     as.formula() |>
     lm_robust(data = df_w9_w10 |>
                 mutate(across(all_of(v), scale))) |>
@@ -831,48 +771,48 @@ fig_attrit_interaction
 
 ```{r}
 #| label: analysis-maintained-support
-#| results: asis
+#| results: 'asis'
 #| include: false
-party_support <- list(
-  lm_robust(afd10 ~ afd9 * workshop, data = individual_df),
-  lm_robust(cdu10 ~ cdu9 * workshop, data = individual_df),
-  lm_robust(linke10 ~ linke9 * workshop, data = individual_df)
-  )
-
-party_support |> texreg::htmlreg()
+  lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd, 
+          data = df_w9_w10 |> 
+            mutate(party_id_w9_afd = 
+                     party_id_w9_afd - mean(party_id_w9_afd, 
+                                            na.rm = TRUE))) |> texreg::htmlreg()
 
 ```
 
 ```{r}
 #| label: analysis-party-support-arrows
 # Calculate mean party support by treatment group for arrow plot
-arrow_data <- individual_df |> 
+arrow_data <- df_w9_w10 |> 
   group_by(workshop) |> 
   summarize(
-    afd_w9 = mean(afd9, na.rm = TRUE),
-    afd_w10 = mean(afd10, na.rm = TRUE),
-    cdu_w9 = mean(cdu9, na.rm = TRUE), 
-    cdu_w10 = mean(cdu10, na.rm = TRUE),
-    linke_w9 = mean(linke9, na.rm = TRUE),
-    linke_w10 = mean(linke10, na.rm = TRUE),
-    spd_w9 = mean(spd9, na.rm = TRUE),
-    spd_w10 = mean(spd10, na.rm = TRUE),
-    gruene_w9 = mean(gruene9, na.rm = TRUE),
-    gruene_w10 = mean(gruene10, na.rm = TRUE),
-    fdp_w9 = mean(fdp9, na.rm = TRUE),
-    fdp_w10 = mean(fdp10, na.rm = TRUE),
-    bsw_w9 = mean(bsw9, na.rm = TRUE),
-    bsw_w10 = mean(bsw10, na.rm = TRUE)
+    party_id_w9_afd     = mean(party_id_w9_afd, na.rm = TRUE),
+    party_id_w10_afd    = mean(party_id_w10_afd, na.rm = TRUE),
+    party_id_w9_cdu     = mean(party_id_w9_cdu, na.rm = TRUE), 
+    party_id_w10_cdu    = mean(party_id_w10_cdu, na.rm = TRUE),
+    party_id_w9_linke   = mean(party_id_w9_linke, na.rm = TRUE),
+    party_id_w10_linke  = mean(party_id_w10_linke, na.rm = TRUE),
+    party_id_w9_spd     = mean(party_id_w9_spd, na.rm = TRUE),
+    party_id_w10_spd    = mean(party_id_w10_spd, na.rm = TRUE),
+    party_id_w9_gruene  = mean(party_id_w9_gruene, na.rm = TRUE),
+    party_id_w10_gruene = mean(party_id_w10_gruene, na.rm = TRUE),
+    party_id_w9_fdp     = mean(party_id_w9_fdp, na.rm = TRUE),
+    party_id_w10_fdp    = mean(party_id_w10_fdp, na.rm = TRUE),
+    party_id_w9_bsw     = mean(party_id_w9_bsw, na.rm = TRUE),
+    party_id_w10_bsw    = mean(party_id_w10_bsw, na.rm = TRUE)
   ) |> 
   mutate(treatment = ifelse(workshop == 1, "Treatment", "Control"))
 
 # Reshape to long format for plotting
 arrow_long <- arrow_data |> 
-  select(treatment, afd_w9, afd_w10, cdu_w9, cdu_w10, linke_w9, linke_w10, 
-         spd_w9, spd_w10, gruene_w9, gruene_w10, fdp_w9, fdp_w10, bsw_w9, bsw_w10) |> 
-  pivot_longer(cols = -treatment, names_to = "party_wave", values_to = "support") |> 
-  separate(party_wave, into = c("party", "wave"), sep = "_w") |> 
-  pivot_wider(names_from = wave, values_from = support, names_prefix = "w") |> 
+  pivot_longer(
+    cols = starts_with("party_id_w"),
+    names_to = c("wave", "party"),
+    names_pattern = "party_id_(w\\d+)_(.*)",
+    values_to = "support"
+  ) |> 
+  pivot_wider(names_from = wave, values_from = support) |> 
   mutate(party = case_when(
     party == "afd" ~ "AfD",
     party == "cdu" ~ "CDU/CSU", 
@@ -884,15 +824,22 @@ arrow_long <- arrow_data |>
   ))
 
 # Create arrow plot
+arrow_segments <- arrow_long |>
+  select(treatment, party, w9, w10) |>
+  tidyr::pivot_wider(
+    names_from = treatment,
+    values_from = c(w9, w10),
+    names_glue = "{.value}_{treatment}"
+  ) |>
+  filter(!is.na(w9_Control) & !is.na(w9_Treatment))
+
 p_arrows <- ggplot(arrow_long, aes(x = w9, y = w10)) +
   geom_point(aes(color = treatment), size = 3, alpha = 0.7) +
   geom_segment(
-    data = arrow_long |> 
-      pivot_wider(names_from = treatment, values_from = c(w9, w10)) |> 
-      filter(!is.na(w9_Control) & !is.na(w9_Treatment)),
-    aes(x = w9_Control, y = w10_Control, 
+    data = arrow_segments,
+    aes(x = w9_Control, y = w10_Control,
         xend = w9_Treatment, yend = w10_Treatment),
-    arrow = arrow(length = unit(0.2, "cm")), 
+    arrow = arrow(length = unit(0.2, "cm")),
     color = "black", size = 1
   ) +
   geom_text_repel(
@@ -923,11 +870,6 @@ ggsave(
 ```{r}
 #| label: analysis-did-ci-plot
 
-# Create DiD plot with confidence intervals using simple regressions
-# Fit simple DiD regressions for each party (change in support)
-
-party_codes =  c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw")
-names(party_codes) = c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "BSW")
 
 # this model is ANOVA style; w10 conditioning on w9
 # not using a change score
@@ -935,10 +877,16 @@ names(party_codes) = c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "
 change_models <-
   party_codes |>
   lapply(function(party) {
-    paste0(party, "10 ~ workshop * ", party, "9_demean") |>
+    paste0(
+      "party_id_w10_", party,
+      " ~ workshop * I(",
+      "party_id_w9_", party,
+      " - mean(party_id_w9_", party, ", na.rm = TRUE))"
+    ) |>
       as.formula() |>
-      lm_robust(data = individual_df) |>
-      tidy() } ) |>
+      lm_robust(data = df_w9_w10) |>
+      tidy()
+  }) |>
   bind_rows(.id = "party") |>
   filter(term == "workshop")
       
@@ -993,18 +941,25 @@ ggsave(
 ```{r}
 #| label: analysis-shortterm-plot
 
-df_w9_ptv <- read_rds("data/df_w9_ptv.rds")
+# fit PTV_Posterior (wave 9) on treatment and pre-treatment PTV (wave 9)
 
-short_models <- 
-  
-  party_codes |> 
+short_models <-
+  party_codes |>
   lapply(function(party) {
-    paste0("ptv_post_", party, " ~ workshop * ptv_pre_", party) |>
-    as.formula() |>
-    lm_robust(data = df_w9_ptv) |> 
-    tidy()}
-) |> bind_rows(.id = "party") |>
-  filter(term == "workshop")
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w9_post_", party)
+
+    fml <- paste0(
+      post_var, " ~ workshop * I(",
+      pre_var, " - mean(", pre_var, ", na.rm = TRUE))"
+    ) |>
+      as.formula()
+
+    lm_robust(fml, data = df_w9_w10) |>
+      tidy()
+  }) |>
+  bind_rows(.id = "party") |>
+  dplyr::filter(grepl(":", term))
 
 # Create  plot with confidence intervals
 ptv_short <- 
@@ -1025,27 +980,29 @@ ggsave(
 
 
 
-
-
 ## long term PTV change
 
 ```{r}
 #| label: analysis-longterm-ptv-plot
 
-df_w10_ptv <- read_rds("data/df_w10_ptv.rds")
 
-lm_robust(ptv_w10_afd ~ workshop * ptv_pre_afd, data = df_w10_ptv)
-
-long_models <- 
-  
-  party_codes |> 
+long_models <-
+  party_codes |>
   lapply(function(party) {
-    paste0("ptv_w10_", party, " ~ workshop * ptv_pre_", party) |>
-    as.formula() |>
-    lm_robust(data = df_w10_ptv) |> 
-    tidy()}
-) |> bind_rows(.id = "party") |>
-  filter(term == "workshop")
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w10_", party)
+
+    fml <- paste0(
+      post_var, " ~ workshop * I(",
+      pre_var, " - mean(", pre_var, ", na.rm = TRUE))"
+    ) |>
+      as.formula()
+
+    lm_robust(fml, data = df_w9_w10) |>
+      tidy()
+  }) |>
+  bind_rows(.id = "party") |>
+  dplyr::filter(grepl(":", term))
 
 # Create  plot with confidence intervals
 ptv_long <- 
@@ -1063,9 +1020,6 @@ ggsave(
 )
 
 ```
-
-
-
 
 
 ## Appendix K: Changes in Party Identification
@@ -1097,7 +1051,7 @@ ggsave(
 ```{r}
 #| label: analysis-pid-change-treated
 
-pid_treat <- build_pid_lodes(df_w9_w10 |> filter(treated_w9 == 1))
+pid_treat <- build_pid_lodes(df_w9_w10 |> filter(workshop == 1))
 
 fig_pid_change_treat <- plot_pid_alluvial(
   lodes = pid_treat$lodes,
@@ -1118,7 +1072,7 @@ ggsave(
 ```{r}
 #| label: analysis-pid-change-control
 
-pid_control <- build_pid_lodes(df_w9_w10 |> filter(treated_w9 == 0))
+pid_control <- build_pid_lodes(df_w9_w10 |> filter(workshop == 0))
 
 fig_pid_change_control <- plot_pid_alluvial(
   lodes = pid_control$lodes,
@@ -1230,8 +1184,6 @@ ggsave(
 
 
 ```{r ,message=FALSE,warning=FALSE}
-comments_df <-read.csv("data/comment_classification.csv")
-
 
 # Desired order
 levels_vec <- c(
