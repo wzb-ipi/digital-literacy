@@ -1,0 +1,19 @@
+File Overview for replication materials preceeding the survey experiemnt:
+
+1_Data Collection Approach Description.ipynb
+- Describes the data collection pipeline for both political and entertainment TikTok videos.
+
+2_Parsing Video Metadata.ipynb
+- Documents how the scraped video metadata were parsed and restricted after collection.
+
+3.1_Validation Sample Entertainment.ipynb
+- Shows how the manual validation sample for entertainment videos was generated: Includes the code used to draw and distribute entertainment-video validation files across research assistants.
+
+3.2_Validation Sample Political.ipynb
+- Shows how the manual validation sample for political videos was generated: Includes the code used to draw and distribute political-video validation files across research assistants, with balancing across parties.
+
+3.3_Validted Political Set.ipynb
+- Documents how the final validated political video set was constructed after manual coding: This file shows how final strategy labels were assigned to political videos and how the validated political dataset used for the final survey sample was produced.
+
+4_Final Survey Sample.ipynb
+- Shows how the final survey video bundle was generated: Combines the validated political videos and the entertainment videos into the final respondent sample used in the experiemnt.
