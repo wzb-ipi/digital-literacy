@@ -784,8 +784,12 @@ by_hand <-
   list(
     identification = lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd_demeaned, 
           data = df_w9_w10),
-    conditional = lm_robust(party_id_w10_afd ~ workshop, 
+    
+    conditional_afd = lm_robust(party_id_w10_afd ~ workshop, 
           data = df_w9_w10 |> filter(party_id_w9_afd == 1)),
+    
+    conditional_non_afd = lm_robust(party_id_w10_afd ~ workshop, 
+          data = df_w9_w10 |> filter(party_id_w9_afd == 0)),
 
     short_ptv = lm_robust(ptv_w9_post_afd ~ workshop*ptv_w9_pre_afd_demeaned, 
           data = df_w9_w10),
