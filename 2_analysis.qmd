@@ -769,15 +769,32 @@ fig_attrit_interaction
 ## Appendix J: Downstream effects on AfD support 
 
 
+Manual verification of afd voting results:
+
 ```{r}
 #| label: analysis-maintained-support
 #| results: 'asis'
-#| include: false
-  lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd, 
-          data = df_w9_w10 |> 
-            mutate(party_id_w9_afd = 
-                     party_id_w9_afd - mean(party_id_w9_afd, 
-                                            na.rm = TRUE))) |> texreg::htmlreg()
+
+df_w9_w10 <- df_w9_w10 |> 
+  mutate(ptv_w9_pre_afd_demeaned = ptv_w9_pre_afd - mean(ptv_w9_pre_afd, na.rm = TRUE),
+         party_id_w9_afd_demeaned = party_id_w9_afd - mean(party_id_w9_afd, 
+                                            na.rm = TRUE))
+by_hand <-
+  
+  list(
+    identification = lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd_demeaned, 
+          data = df_w9_w10),
+    conditional = lm_robust(party_id_w10_afd ~ workshop, 
+          data = df_w9_w10 |> filter(party_id_w9_afd == 1)),
+
+    short_ptv = lm_robust(ptv_w9_post_afd ~ workshop*ptv_w9_pre_afd_demeaned, 
+          data = df_w9_w10),
+    long_ptv =  lm_robust(ptv_w10_afd ~ workshop*ptv_w9_pre_afd_demeaned, 
+          data = df_w9_w10)
+  )
+      
+
+by_hand  |> texreg::htmlreg(digits = 3, include.ci = FALSE)
 
 ```
 
