@@ -779,27 +779,123 @@ df_w9_w10 <- df_w9_w10 |>
   mutate(ptv_w9_pre_afd_demeaned = ptv_w9_pre_afd - mean(ptv_w9_pre_afd, na.rm = TRUE),
          party_id_w9_afd_demeaned = party_id_w9_afd - mean(party_id_w9_afd, 
                                             na.rm = TRUE))
+
 by_hand <-
-  
   list(
-    identification = lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd_demeaned, 
-          data = df_w9_w10),
-    
-    conditional_afd = lm_robust(party_id_w10_afd ~ workshop, 
-          data = df_w9_w10 |> filter(party_id_w9_afd == 1)),
-    
+    identification      = lm_robust(party_id_w10_afd ~ workshop*party_id_w9_afd_demeaned, 
+                                    data = df_w9_w10),
+    conditional_afd     = lm_robust(party_id_w10_afd ~ workshop, 
+                                    data = df_w9_w10 |> filter(party_id_w9_afd == 1)),
     conditional_non_afd = lm_robust(party_id_w10_afd ~ workshop, 
-          data = df_w9_w10 |> filter(party_id_w9_afd == 0)),
-
-    short_ptv = lm_robust(ptv_w9_post_afd ~ workshop*ptv_w9_pre_afd_demeaned, 
-          data = df_w9_w10),
-    long_ptv =  lm_robust(ptv_w10_afd ~ workshop*ptv_w9_pre_afd_demeaned, 
-          data = df_w9_w10)
+                                    data = df_w9_w10 |> filter(party_id_w9_afd == 0))
   )
-      
 
-by_hand  |> texreg::htmlreg(digits = 3, include.ci = FALSE)
+# Ensure tabs directory exists and export LaTeX table
 
+texreg::texreg(
+  by_hand,
+  file      = "tabs/tab_afd_maintained_support.tex",
+  digits    = 3,
+  include.ci = FALSE,
+  custom.model.names = c(
+    "All respondents",
+    "AfD identifiers",
+    "Non-AfD respondents"
+  ),
+  custom.coef.map = list(
+    "(Intercept)"                     = "Intercept",
+    "workshop"                        = "Treatment (workshop)",
+    "party_id_w9_afd_demeaned"        = "AfD ID (wave 9, demeaned)",
+    "workshop:party_id_w9_afd_demeaned" = "Treatment × AfD ID (demeaned)"
+  ),
+  caption  = "Effect of digital literacy workshop on AfD identification (wave 10).",
+  label    = "tab:afd_maintained_support"
+)
+
+# Keep HTML version for quick inspection in the rendered document
+by_hand |> texreg::htmlreg(digits = 3, include.ci = FALSE)
+
+```
+
+## Additional analysis: conditional effects for all parties
+
+```{r}
+#| label: analysis-maintained-support-all-parties
+
+# For each party, estimate:
+# (a) average effect (interaction model with demeaned ID)
+# (b) effect among identifiers
+# (c) effect among non-identifiers
+
+maintained_results <-
+  party_codes |>
+  lapply(function(party) {
+    w9  <- paste0("party_id_w9_", party)
+    w10 <- paste0("party_id_w10_", party)
+
+    df_tmp <- df_w9_w10 |>
+      dplyr::mutate(
+        id_w9          = !!rlang::sym(w9),
+        id_w9_demeaned = id_w9 - mean(id_w9, na.rm = TRUE),
+        id_w10         = !!rlang::sym(w10)
+      )
+
+    # (a) Average effect (interaction model with demeaned ID)
+    m_all <- lm_robust(id_w10 ~ workshop * id_w9_demeaned, data = df_tmp)
+
+    # (b) Effect among identifiers
+    m_id  <- lm_robust(id_w10 ~ workshop,
+                       data = df_tmp |> dplyr::filter(id_w9 == 1))
+
+    # (c) Effect among non-identifiers
+    m_non <- lm_robust(id_w10 ~ workshop,
+                       data = df_tmp |> dplyr::filter(id_w9 == 0))
+
+    dplyr::bind_rows(
+      tidy(m_all) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "All respondents"),
+      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Identifiers"),
+      tidy(m_non) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Non-identifiers")
+    ) |>
+      dplyr::mutate(party = party_names[[party]])
+  }) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(
+    party = factor(party, levels = party_names),
+    group = factor(
+      group,
+      levels = c("All respondents", "Identifiers", "Non-identifiers")
+    )
+  )
+
+fig_maintained_all_parties <-
+  maintained_results |>
+  ggplot(aes(x = estimate, y = party, color = group)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
+  geom_errorbarh(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.6),
+    height = 0.2
+  ) +
+  labs(
+    x = "Effect of workshop on party identification (wave 10)",
+    y = "Party",
+    color = NULL,
+    title = "Effects of digital literacy workshop on party identification",
+    subtitle = "Average effect, identifiers, and non-identifiers"
+  ) +
+  theme_bw()
+
+fig_maintained_all_parties
+
+ggsave(
+  filename = "figs/fig_maintained_support_all_parties.pdf",
+  plot = fig_maintained_all_parties,
+  device = cairo_pdf
+)
 ```
 
 ```{r}
@@ -895,15 +991,10 @@ ggsave(
 # this model is ANOVA style; w10 conditioning on w9
 # not using a change score
 
-change_models <-
+over_time_models <-
   party_codes |>
   lapply(function(party) {
-    paste0(
-      "party_id_w10_", party,
-      " ~ workshop * I(",
-      "party_id_w9_", party,
-      " - mean(party_id_w9_", party, ", na.rm = TRUE))"
-    ) |>
+    paste0("party_id_w10_", party, " ~ workshop * party_id_w9_", party, "_demean") |>
       as.formula() |>
       lm_robust(data = df_w9_w10) |>
       tidy()
@@ -913,7 +1004,7 @@ change_models <-
       
 # Create  plot with confidence intervals
 plot_change <- function(
-    results = change_models,
+    results = over_time_models,
     subtitle = "Effect of treatment on long term support, conditional on initial support") {
 
   results   |>
@@ -943,7 +1034,7 @@ plot_change <- function(
 }
 
 changew9w10 <- plot_change(
-  results = change_models,
+  results = over_time_models,
   subtitle = "Effect of treatment on long term support, conditional on initial support")
 
 print(changew9w10)

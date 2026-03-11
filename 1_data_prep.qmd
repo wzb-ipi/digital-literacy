@@ -35,10 +35,10 @@ data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
 df_09v <- read_dta(
   paste0(
     data_path,
-    "wave_9/Full-Launch/paper_tiktok/3_merged_data/w9_video_reshaped.dta"))
+    "wave_9/Full-Launch/paper_tiktok/3_merged_data/w9_video_reshaped_alt.dta"))
 
 df_10v <- read_dta(
-  paste0(data_path, "wave_10/merged/Video_reshaped.dta"))
+  paste0(data_path, "wave_10/merged/w10_Video_reshaped_alt.dta"))
 
 # Wave 9 and 10 combined data
 df_w10 <- 
@@ -105,6 +105,7 @@ prepare_data <- function(df) {
   df
 }
 
+demean <- function(x) x - mean(x, na.rm = TRUE)
 ```
 
 
@@ -142,7 +143,7 @@ labels_df |> write_rds("data/labels_df.rds")
 clean_ptv <- function(x, demean = FALSE) {
   x <- as.numeric(x)
   x <- ifelse(x == 99, NA_real_, x)
-  if (demean) x <- x - mean(x, na.rm = TRUE)
+  if (demean) x <- demean(x)
   x / 10
 }
 ```
@@ -225,6 +226,16 @@ df_w10 <- df_w10 %>%
     party_id_w9_bsw    = as.integer(Parteienidentifikation == 8),
     party_id_w9_other  = as.integer(Parteienidentifikation == 9),
     party_id_w9_none   = as.integer(Parteienidentifikation == 10),
+
+    party_id_w9_cdu_demean    = demean(party_id_w9_cdu),
+    party_id_w9_spd_demean    = demean(party_id_w9_spd),
+    party_id_w9_afd_demean    = demean(party_id_w9_afd),
+    party_id_w9_gruene_demean = demean(party_id_w9_gruene),
+    party_id_w9_fdp_demean    = demean(party_id_w9_fdp),
+    party_id_w9_linke_demean  = demean(party_id_w9_linke),
+    party_id_w9_bsw_demean    = demean(party_id_w9_bsw),
+    party_id_w9_other_demean  = demean(party_id_w9_other),
+    party_id_w9_none_demean   = demean(party_id_w9_none),
     
     party_w10 = case_when(
       as.numeric(Parteienidentifikation_W) %in% c(1, 2) ~ "CDU/CSU",
