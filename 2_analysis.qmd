@@ -821,13 +821,15 @@ by_hand |> texreg::htmlreg(digits = 3, include.ci = FALSE)
 
 ```{r}
 #| label: analysis-maintained-support-all-parties
+#| fig-height: 7
+#| fig-width: 7
 
 # For each party, estimate:
 # (a) average effect (interaction model with demeaned ID)
 # (b) effect among identifiers
 # (c) effect among non-identifiers
 
-maintained_results <-
+maintained_results_raw <-
   party_codes |>
   lapply(function(party) {
     w9  <- paste0("party_id_w9_", party)
@@ -861,9 +863,18 @@ maintained_results <-
     ) |>
       dplyr::mutate(party = party_names[[party]])
   }) |>
-  dplyr::bind_rows() |>
+  dplyr::bind_rows()
+
+party_order_maintained <-
+  maintained_results_raw |>
+  dplyr::filter(group == "All respondents") |>
+  dplyr::arrange(estimate) |>
+  dplyr::pull(party)
+
+maintained_results <-
+  maintained_results_raw |>
   dplyr::mutate(
-    party = factor(party, levels = party_names),
+    party = factor(party, levels = party_order_maintained),
     group = factor(
       group,
       levels = c("All respondents", "Identifiers", "Non-identifiers")
@@ -880,6 +891,17 @@ fig_maintained_all_parties <-
     position = position_dodge(width = 0.6),
     height = 0.2
   ) +
+  geom_text(
+    aes(
+      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
+      group = group
+    ),
+    position = position_dodge(width = 0.6),
+    hjust = 0.5,
+    vjust = -0.7,
+    size = 2.5,
+    show.legend = FALSE
+  ) +
   labs(
     x = "Effect of workshop on party identification (wave 10)",
     y = "Party",
@@ -894,6 +916,8 @@ fig_maintained_all_parties
 ggsave(
   filename = "figs/fig_maintained_support_all_parties.pdf",
   plot = fig_maintained_all_parties,
+  width = 7,
+  height = 9,
   device = cairo_pdf
 )
 ```
@@ -1087,6 +1111,107 @@ ggsave(
 
 ```
 
+```{r}
+#| label: analysis-shortterm-ptv-plot-by-id
+#| fig-height: 7
+#| fig-width: 7
+
+# Short-term PTV effects by party, split by wave 9 identifiers
+
+ptv_short_by_id_raw <-
+  party_codes |>
+  lapply(function(party) {
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w9_post_", party)
+    id_var  <- paste0("party_id_w9_", party)
+
+    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
+      as.formula()
+
+    # All respondents (conditional on continuous baseline PTV)
+    m_all <- lm_robust(fml, data = df_w9_w10)
+
+    # Among identifiers (party ID at wave 9 == 1)
+    m_id <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
+    )
+
+    # Among non-identifiers (party ID at wave 9 == 0)
+    m_non <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
+    )
+
+    dplyr::bind_rows(
+      tidy(m_all) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "All respondents"),
+      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Identifiers"),
+      tidy(m_non) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Non-identifiers")
+    ) |>
+      dplyr::mutate(party = party_names[[party]])
+  }) |>
+  dplyr::bind_rows()
+
+party_order_short <-
+  ptv_short_by_id_raw |>
+  dplyr::filter(group == "All respondents") |>
+  dplyr::arrange(estimate) |>
+  dplyr::pull(party)
+
+ptv_short_by_id <-
+  ptv_short_by_id_raw |>
+  dplyr::mutate(
+    party = factor(party, levels = party_order_short),
+    group = factor(
+      group,
+      levels = c("All respondents", "Identifiers", "Non-identifiers")
+    )
+  )
+
+fig_shortterm_ptv_by_id <-
+  ptv_short_by_id |>
+  ggplot(aes(x = estimate, y = party, color = group)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
+  geom_errorbarh(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.6),
+    height = 0.2
+  ) +
+  geom_text(
+    aes(
+      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
+      group = group
+    ),
+    position = position_dodge(width = 0.6),
+    hjust = 0.5,
+    vjust = -0.7,
+    size = 2.5,
+    show.legend = FALSE
+  ) +
+  labs(
+    x = "Effect of workshop on short-term PTV (wave 9, 0–1 scale)",
+    y = "Party",
+    color = NULL,
+    title = "Short-term PTV effects of digital literacy workshop",
+    subtitle = "Average effect, identifiers, and non-identifiers"
+  ) +
+  theme_bw()
+
+fig_shortterm_ptv_by_id
+
+ggsave(
+  filename = "figs/fig_shortterm_ptv_by_id.pdf",
+  plot = fig_shortterm_ptv_by_id,
+  width = 7,
+  height = 9,
+  device = cairo_pdf
+)
+```
+
 
 
 ### long term PTV change
@@ -1130,10 +1255,12 @@ ggsave(
 
 ```{r}
 #| label: analysis-longterm-ptv-plot-by-id
+#| fig-height: 7
+#| fig-width: 7
 
 # Long-term PTV effects by party, split by wave 9 identifiers
 
-ptv_long_by_id <-
+ptv_long_by_id_raw <-
   party_codes |>
   lapply(function(party) {
     pre_var <- paste0("ptv_w9_pre_", party)
@@ -1168,9 +1295,18 @@ ptv_long_by_id <-
     ) |>
       dplyr::mutate(party = party_names[[party]])
   }) |>
-  dplyr::bind_rows() |>
+  dplyr::bind_rows()
+
+party_order_long <-
+  ptv_long_by_id_raw |>
+  dplyr::filter(group == "All respondents") |>
+  dplyr::arrange(estimate) |>
+  dplyr::pull(party)
+
+ptv_long_by_id <-
+  ptv_long_by_id_raw |>
   dplyr::mutate(
-    party = factor(party, levels = party_names),
+    party = factor(party, levels = party_order_long),
     group = factor(
       group,
       levels = c("All respondents", "Identifiers", "Non-identifiers")
@@ -1187,6 +1323,17 @@ fig_longterm_ptv_by_id <-
     position = position_dodge(width = 0.6),
     height = 0.2
   ) +
+  geom_text(
+    aes(
+      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
+      group = group
+    ),
+    position = position_dodge(width = 0.6),
+    hjust = 0.5,
+    vjust = -0.7,
+    size = 2.5,
+    show.legend = FALSE
+  ) +
   labs(
     x = "Effect of workshop on long-term PTV (wave 10, 0–1 scale)",
     y = "Party",
@@ -1201,6 +1348,8 @@ fig_longterm_ptv_by_id
 ggsave(
   filename = "figs/fig_longterm_ptv_by_id.pdf",
   plot = fig_longterm_ptv_by_id,
+  width = 7,
+  height = 9,
   device = cairo_pdf
 )
 ```
