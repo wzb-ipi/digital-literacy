@@ -12,6 +12,6 @@ We provide files to replicate all analyses and tables for "Digital literacy redu
 1. [Data preparation and checks](1_data_prep.html) code
 2. data (`.rds`) files: [wave_9](data/wave_9.rds) [wave_10](data/wave_10.rds)
 3. [Code used for video treatment preparation](https://github.com/wzb-ipi/digital-literacy/tree/main/pre_survey_prep)
-4. [Replication code](2_analysis.html)
+4. All results and [Replication code](2_analysis.html)
 
  

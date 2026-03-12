@@ -817,7 +817,7 @@ by_hand |> texreg::htmlreg(digits = 3, include.ci = FALSE)
 
 ```
 
-## Additional analysis: conditional effects for all parties
+### Additional analysis: conditional effects for all parties
 
 ```{r}
 #| label: analysis-maintained-support-all-parties
@@ -1048,7 +1048,7 @@ ggsave(
 ```
 
 
-## short term PTV change
+### short term PTV change
 
 ```{r}
 #| label: analysis-shortterm-plot
@@ -1089,7 +1089,7 @@ ggsave(
 
 
 
-## long term PTV change
+### long term PTV change
 
 ```{r}
 #| label: analysis-longterm-ptv-plot
@@ -1128,6 +1128,83 @@ ggsave(
 
 ```
 
+```{r}
+#| label: analysis-longterm-ptv-plot-by-id
+
+# Long-term PTV effects by party, split by wave 9 identifiers
+
+ptv_long_by_id <-
+  party_codes |>
+  lapply(function(party) {
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w10_", party)
+    id_var  <- paste0("party_id_w9_", party)
+
+    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
+      as.formula()
+
+    # All respondents (conditional on continuous baseline PTV)
+    m_all <- lm_robust(fml, data = df_w9_w10)
+
+    # Among identifiers (party ID at wave 9 == 1)
+    m_id <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
+    )
+
+    # Among non-identifiers (party ID at wave 9 == 0)
+    m_non <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
+    )
+
+    dplyr::bind_rows(
+      tidy(m_all) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "All respondents"),
+      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Identifiers"),
+      tidy(m_non) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Non-identifiers")
+    ) |>
+      dplyr::mutate(party = party_names[[party]])
+  }) |>
+  dplyr::bind_rows() |>
+  dplyr::mutate(
+    party = factor(party, levels = party_names),
+    group = factor(
+      group,
+      levels = c("All respondents", "Identifiers", "Non-identifiers")
+    )
+  )
+
+fig_longterm_ptv_by_id <-
+  ptv_long_by_id |>
+  ggplot(aes(x = estimate, y = party, color = group)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
+  geom_errorbarh(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.6),
+    height = 0.2
+  ) +
+  labs(
+    x = "Effect of workshop on long-term PTV (wave 10, 0–1 scale)",
+    y = "Party",
+    color = NULL,
+    title = "Long-term PTV effects of digital literacy workshop",
+    subtitle = "Average effect, identifiers, and non-identifiers"
+  ) +
+  theme_bw()
+
+fig_longterm_ptv_by_id
+
+ggsave(
+  filename = "figs/fig_longterm_ptv_by_id.pdf",
+  plot = fig_longterm_ptv_by_id,
+  device = cairo_pdf
+)
+```
+
 
 ## Appendix K: Changes in Party Identification
 
@@ -1153,7 +1230,7 @@ ggsave(
 ```
 
 
-## within treatment
+### within treatment
 
 ```{r}
 #| label: analysis-pid-change-treated
@@ -1174,7 +1251,7 @@ ggsave(
 )
 ```
 
-## within control
+### within control
 
 ```{r}
 #| label: analysis-pid-change-control
