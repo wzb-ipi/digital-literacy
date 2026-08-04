@@ -1,4 +1,4 @@
-﻿---
+---
 title: "Digital literacy reduces susceptibility to populist content on social media"
 subtitle: Replication data and code
 author: Kristina Aleksandrovna Pedersen, Ferdinand Geissler, Felix Hartmann, Johannes Giesecke, Macartan Humphreys, Heike Klüver
@@ -566,7 +566,7 @@ for (D in c("wave_9", "wave_10")) {
 
 # Article-figure dependencies
 
-Estimation / `write_fig` for objects that `# Figures of article` reads from `ests/`. Placed here so a cold top-to-bottom render succeeds; appendix sections below redisplay the saved plots.
+Estimation / `write_fig` for objects that `# Figures for article` reads from `ests/`. Placed here so a cold top-to-bottom render succeeds; appendix sections below redisplay the saved plots.
 
 ## f_IIc3: by partisanship and party
 
@@ -844,7 +844,7 @@ write_fig(
 ```
 
 
-# Figures of article
+# Figures for article
 
 
 ## Figure 1
