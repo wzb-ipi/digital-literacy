@@ -1,4 +1,4 @@
----
+﻿---
 title: "Digital literacy reduces susceptibility to populist content on social media"
 subtitle: Replication data and code
 author: Kristina Aleksandrovna Pedersen, Ferdinand Geissler, Felix Hartmann, Johannes Giesecke, Macartan Humphreys, Heike Klüver
@@ -49,7 +49,7 @@ pacman::p_load(
 
 setFixest_notes(FALSE)  # Suppress fixest NOTE messages
 filter_10 <- TRUE
-# Causal forests are slow; set TRUE once to fit/save, then FALSE to reuse ests/
+# Causal forests is slow; set TRUE once to fit/save, then FALSE to reuse ests/
 RUN_FORESTS <- FALSE
 pref_var <- "party_preference_"
 
@@ -102,6 +102,9 @@ party_codes <-  c("afd", "cdu", "linke", "spd", "gruene", "fdp", "bsw")
 party_names <- c("AfD", "CDU/CSU", "Linke",   "SPD",  "Grüne",  "FDP",  "BSW")
 names(party_codes) <- party_names
 names(party_names) <- party_codes
+
+# texreg: *** / ** / * map to these upper bounds (not 0.001/0.01/0.05)
+texreg_stars <- c(0.01, 0.05, 0.10)
 
 ```
 
@@ -561,6 +564,286 @@ for (D in c("wave_9", "wave_10")) {
 
 
 
+# Article-figure dependencies
+
+Estimation / `write_fig` for objects that `# Figures of article` reads from `ests/`. Placed here so a cold top-to-bottom render succeeds; appendix sections below redisplay the saved plots.
+
+## f_IIc3: by partisanship and party
+
+This section estimates treatment effects by party and partisanship, with nested facet labels. Needed by Figure 1 (`f_IIc3_shortterm`).
+
+```{r}
+#| label: analysis-f_IIc3-partisanship-party
+for (D in c("wave_9", "wave_10")) {
+  df <- datasets[[D]]
+
+  for (OG in names(l_outcomegroups)) {
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
+      lapply(strategies, function(S)
+        lapply(names(l_partisanship), function(PS)
+          lapply(names(party_codes), function(P) {
+            df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
+            y <- df_temp[[v_outcomes[Y]]]
+            if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
+              print(paste("skipping ", paste(P, PS, S, Y, sep = "/"), " 
+                          (NO ESTIMATION POSSIBLE: constant/NA DV)"))
+              return(NULL)
+            }
+            run_feols_tidy(
+              df = df_temp,
+              outcome_var = v_outcomes[Y],
+              extra_cols = list(
+                outcome = Y,
+                strategy = S,
+                partisan = as.character(PS),
+                party = P
+              )
+            )
+          })
+        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIc3"
+      )
+
+    plot <- estimates |>
+      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+      facet_nested(
+        rows = vars(party, partisan),
+        cols = vars(outcome),
+        strip = strip_nested(
+          text_y = list(
+            element_text(angle = 90),
+            element_text(angle = 0, hjust = 0)
+          ),
+          by_layer_y = TRUE
+        )
+      ) +
+      labs(title = unique(estimates$wave_label)) +
+      theme(
+        panel.spacing.y = unit(0, "pt"),
+        strip.background.y = element_rect(fill = "grey90", color = "black"),
+        legend.position = "none",
+        axis.text = element_text(size = 6.5)
+      )
+
+    write_fig(
+      stem = fig_stem("f_IIc3", OG, D),
+      estimates = estimates,
+      plot = plot,
+      width = 7,
+      height = 11
+    )
+  }
+}
+```
+
+## PTV effects by prior identification
+
+Short- and long-term workshop effects on PTV by party, split by wave-9 identifiers. Saved stems feed `## Figure PTV (combined)`.
+
+```{r}
+#| label: analysis-shortterm-ptv-plot-by-id
+#| fig-height: 7
+#| fig-width: 7
+
+# Short-term PTV effects by party, split by wave 9 identifiers
+
+ptv_short_by_id_raw <-
+  party_codes |>
+  lapply(function(party) {
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w9_post_", party)
+    id_var  <- paste0("party_id_w9_", party)
+
+    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
+      as.formula()
+
+    # All respondents (conditional on continuous baseline PTV)
+    m_all <- lm_robust(fml, data = df_w9_w10)
+
+    # Among identifiers (party ID at wave 9 == 1)
+    m_id <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
+    )
+
+    # Among non-identifiers (party ID at wave 9 == 0)
+    m_non <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
+    )
+
+    dplyr::bind_rows(
+      tidy(m_all) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "All respondents"),
+      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Identifiers"),
+      tidy(m_non) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Non-identifiers")
+    ) |>
+      dplyr::mutate(party = party_names[[party]])
+  }) |>
+  dplyr::bind_rows()
+
+party_order_short <-
+  ptv_short_by_id_raw |>
+  dplyr::filter(group == "All respondents") |>
+  dplyr::arrange(estimate) |>
+  dplyr::pull(party)
+
+ptv_short_by_id <-
+  ptv_short_by_id_raw |>
+  dplyr::mutate(
+    party = factor(party, levels = party_order_short),
+    group = factor(
+      group,
+      levels = c("All respondents", "Identifiers", "Non-identifiers")
+    )
+  )
+
+fig_shortterm_ptv_by_id <-
+  ptv_short_by_id |>
+  ggplot(aes(x = estimate, y = party, color = group)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
+  geom_errorbarh(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.6),
+    height = 0.2
+  ) +
+  geom_text(
+    aes(
+      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
+      group = group
+    ),
+    position = position_dodge(width = 0.6),
+    hjust = 0.5,
+    vjust = -0.7,
+    size = 2.5,
+    show.legend = FALSE
+  ) +
+  labs(
+    x = "Effect of workshop on short-term PTV (wave 9, 0–1 scale)",
+    y = "Party",
+    color = NULL,
+    title = "Short-term PTV effects of digital literacy workshop",
+    subtitle = "Average effect, identifiers, and non-identifiers"
+  ) +
+  theme_bw()
+
+write_fig(
+  stem = "fig_shortterm_ptv_by_id",
+  estimates = ptv_short_by_id,
+  plot = fig_shortterm_ptv_by_id,
+  width = 7,
+  height = 9
+)
+```
+
+```{r}
+#| label: analysis-longterm-ptv-plot-by-id
+#| fig-height: 7
+#| fig-width: 7
+
+# Long-term PTV effects by party, split by wave 9 identifiers
+
+ptv_long_by_id_raw <-
+  party_codes |>
+  lapply(function(party) {
+    pre_var <- paste0("ptv_w9_pre_", party)
+    post_var <- paste0("ptv_w10_", party)
+    id_var  <- paste0("party_id_w9_", party)
+
+    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
+      as.formula()
+
+    # All respondents (conditional on continuous baseline PTV)
+    m_all <- lm_robust(fml, data = df_w9_w10)
+
+    # Among identifiers (party ID at wave 9 == 1)
+    m_id <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
+    )
+
+    # Among non-identifiers (party ID at wave 9 == 0)
+    m_non <- lm_robust(
+      fml,
+      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
+    )
+
+    dplyr::bind_rows(
+      tidy(m_all) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "All respondents"),
+      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Identifiers"),
+      tidy(m_non) |> dplyr::filter(term == "workshop") |>
+        dplyr::mutate(group = "Non-identifiers")
+    ) |>
+      dplyr::mutate(party = party_names[[party]])
+  }) |>
+  dplyr::bind_rows()
+
+party_order_long <-
+  ptv_long_by_id_raw |>
+  dplyr::filter(group == "All respondents") |>
+  dplyr::arrange(estimate) |>
+  dplyr::pull(party)
+
+ptv_long_by_id <-
+  ptv_long_by_id_raw |>
+  dplyr::mutate(
+    party = factor(party, levels = party_order_long),
+    group = factor(
+      group,
+      levels = c("All respondents", "Identifiers", "Non-identifiers")
+    )
+  )
+
+fig_longterm_ptv_by_id <-
+  ptv_long_by_id |>
+  ggplot(aes(x = estimate, y = party, color = group)) +
+  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
+  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
+  geom_errorbarh(
+    aes(xmin = conf.low, xmax = conf.high),
+    position = position_dodge(width = 0.6),
+    height = 0.2
+  ) +
+  geom_text(
+    aes(
+      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
+      group = group
+    ),
+    position = position_dodge(width = 0.6),
+    hjust = 0.5,
+    vjust = -0.7,
+    size = 2.5,
+    show.legend = FALSE
+  ) +
+  labs(
+    x = "Effect of workshop on long-term PTV (wave 10, 0–1 scale)",
+    y = "Party",
+    color = NULL,
+    title = "Long-term PTV effects of digital literacy workshop",
+    subtitle = "Average effect, identifiers, and non-identifiers"
+  ) +
+  theme_bw()
+
+write_fig(
+  stem = "fig_longterm_ptv_by_id",
+  estimates = ptv_long_by_id,
+  plot = fig_longterm_ptv_by_id,
+  width = 7,
+  height = 9
+)
+```
+
+
 # Figures of article
 
 
@@ -815,7 +1098,7 @@ write_type_contrast_table <- function(models, outcome_name, contrast_slug,
     custom.coef.map = type_contrast_coef_map,
     caption = caption,
     label = label,
-    stars = c(0.001, 0.01, 0.05)
+    stars = texreg_stars
   )
   texreg::htmlreg(
     models,
@@ -824,7 +1107,7 @@ write_type_contrast_table <- function(models, outcome_name, contrast_slug,
     custom.model.names = names(models),
     custom.coef.map = type_contrast_coef_map,
     caption = caption,
-    stars = c(0.001, 0.01, 0.05)
+    stars = texreg_stars
   )
 }
 ```
@@ -921,15 +1204,15 @@ write_type_contrast_table(
 
 ## Treatment effects by AfD video
 
-Heterogeneity of short-term treatment effects by whether the video's sending party is AfD. **Sample restriction:** emotionally manipulative political videos only — `strategy_2 == strategies[1]` i.e. `"political\n(emotional)"` in `wave_9` (not all political content; not entertainment). Same content type as the main emotional-political estimates. AfD-video indicator is `afd_video = 1{party == "AfD"}` (sending party), not respondent partisanship.
+Heterogeneity of short-term treatment effects by respondent AfD supporter status, with columns 2–3 stratified by whether the video's sending party is AfD. **Sample restriction:** emotionally manipulative political videos only — `strategy_2 == strategies[1]` i.e. `"political\n(emotional)"` in `wave_9` (not all political content; not entertainment). Same content type as the main emotional-political estimates. AfD supporter status is `AFD = 1{party_preference_afd == 1}` (respondent). AfD-video stratification uses `afd_video = 1{party == "AfD"}` (sending party).
 
-For the pooled sample we estimate
+In every column we estimate the same interaction
 
 $$
-Y = \beta_0 + \beta_1 \text{Treatment} + \beta_2 \text{AfD video} + \beta_3 (\text{Treatment} \times \text{AfD video}) + \varepsilon
+Y = \beta_0 + \beta_1 \text{Treatment} + \beta_2 \text{AFD} + \beta_3 (\text{Treatment} \times \text{AFD}) + \varepsilon
 $$
 
-with SEs clustered by respondent (no video FE). Columns: (1) all political-emotional videos with the interaction; (2) AfD videos only (`Y ~ Treatment`); (3) non-AfD sender videos only (`Y ~ Treatment`). Outcomes: Like and Report. $\beta_3$ in column (1) is the difference in ATEs (AfD videos minus other senders).
+with SEs clustered by respondent (no video FE). Columns: (1) all political-emotional videos; (2) AfD videos only; (3) non-AfD sender videos only. Outcomes: Like and Report. $\beta_3$ is the difference in ATEs (AfD supporters minus non-supporters) within that sample. (`treatment × afd_video` is unidentified in columns 2–3 because `afd_video` is constant within those subsets.)
 
 ```{r}
 #| label: comparing-video-types-afd-video-hetero
@@ -937,13 +1220,16 @@ with SEs clustered by respondent (no video FE). Columns: (1) all political-emoti
 
 df_afd_het <- datasets$wave_9 |>
   filter(strategy_2 == strategies[1]) |>
-  mutate(afd_video = as.integer(party == "AfD"))
+  mutate(
+    AFD = as.integer(party_preference_afd == 1),
+    afd_video = as.integer(party == "AfD")
+  )
 
 afd_hetero_coef_map <- list(
   "(Intercept)" = "Intercept",
   "workshop_Treatment" = "Treatment",
-  "afd_video" = "AfD video",
-  "workshop_Treatment:afd_video" = "Treatment × AfD video"
+  "AFD" = "AfD supporter",
+  "workshop_Treatment:AFD" = "Treatment × AfD supporter"
 )
 
 afd_hetero_model_names <- c(
@@ -954,19 +1240,16 @@ afd_hetero_model_names <- c(
 
 fit_afd_hetero <- function(df, outcome_name) {
   y <- v_outcomes[[outcome_name]]
+  fml <- as.formula(paste0(y, " ~ workshop_Treatment * AFD"))
   list(
-    `All (interaction)` = feols(
-      as.formula(paste0(y, " ~ workshop_Treatment * afd_video")),
-      data = df,
-      cluster = ~ID
-    ),
+    `All (interaction)` = feols(fml, data = df, cluster = ~ID),
     `AfD videos` = feols(
-      as.formula(paste0(y, " ~ workshop_Treatment")),
+      fml,
       data = df |> filter(afd_video == 1),
       cluster = ~ID
     ),
     `Other senders` = feols(
-      as.formula(paste0(y, " ~ workshop_Treatment")),
+      fml,
       data = df |> filter(afd_video == 0),
       cluster = ~ID
     )
@@ -985,7 +1268,7 @@ write_afd_hetero_table <- function(models, outcome_name, caption, label) {
     custom.coef.map = afd_hetero_coef_map,
     caption = caption,
     label = label,
-    stars = c(0.001, 0.01, 0.05)
+    stars = texreg_stars
   )
   texreg::htmlreg(
     models,
@@ -994,7 +1277,7 @@ write_afd_hetero_table <- function(models, outcome_name, caption, label) {
     custom.model.names = afd_hetero_model_names,
     custom.coef.map = afd_hetero_coef_map,
     caption = caption,
-    stars = c(0.001, 0.01, 0.05)
+    stars = texreg_stars
   )
 }
 
@@ -1009,7 +1292,7 @@ cat("\n### Like\n\n")
 write_afd_hetero_table(
   models_afd_het$Like,
   "Like",
-  caption = "Treatment effects by AfD video (vs other senders): Like (emotional political videos, short-term). SEs clustered by respondent.",
+  caption = "Treatment × AfD supporter, stratified by AfD video: Like (emotional political videos, short-term). Cols: All / AfD videos / other senders. SEs clustered by respondent.",
   label = "tab:afd_video_hetero_like"
 )
 
@@ -1017,8 +1300,95 @@ cat("\n### Report\n\n")
 write_afd_hetero_table(
   models_afd_het$Report,
   "Report",
-  caption = "Treatment effects by AfD video (vs other senders): Report (emotional political videos, short-term). SEs clustered by respondent.",
+  caption = "Treatment × AfD supporter, stratified by AfD video: Report (emotional political videos, short-term). Cols: All / AfD videos / other senders. SEs clustered by respondent.",
   label = "tab:afd_video_hetero_report"
+)
+```
+
+### Triple interaction (demeaned)
+
+Same emotional-political sample (`wave_9`, `strategy_2 == strategies[1]`). We estimate the fully interacted model of demeaned treatment, demeaned AfD supporter status, and demeaned AfD-video (sender) status:
+
+$$
+Y = \beta_0 + \beta_1 \tilde{T} + \beta_2 \tilde{A} + \beta_3 \tilde{V} + \beta_4 (\tilde{T}\times\tilde{A}) + \beta_5 (\tilde{T}\times\tilde{V}) + \beta_6 (\tilde{A}\times\tilde{V}) + \beta_7 (\tilde{T}\times\tilde{A}\times\tilde{V}) + \varepsilon
+$$
+
+where $\tilde{T}$, $\tilde{A}$, and $\tilde{V}$ are `workshop_Treatment`, `AFD` ($1\{\texttt{party\_preference\_afd}=1\}$), and `AFD\_videos` ($1\{\texttt{party}=\texttt{"AfD"}\}$) each demeaned by their mean on this analysis sample. Demeaning is for interpretability: main effects and lower-order interactions are evaluated at sample means of the other factors. SEs clustered by respondent (no video FE), matching the stratified AfD-video hetero tables above. Columns: Like, Share, Bookmark, Report.
+
+```{r}
+#| label: comparing-video-types-afd-video-3way-demeaned
+#| results: 'asis'
+
+ensure_fig_dirs()
+dir.create("tabs", showWarnings = FALSE)
+
+df_afd_3way <- datasets$wave_9 |>
+  filter(strategy_2 == strategies[1]) |>
+  mutate(
+    AFD_supporter = as.integer(party_preference_afd == 1),
+    AFD_videos = as.integer(party == "AfD")
+  ) |>
+  mutate(
+    treatment_demeaned = workshop_Treatment - mean(workshop_Treatment, na.rm = TRUE),
+    AFD_supporter_demeaned = AFD_supporter - mean(AFD_supporter, na.rm = TRUE),
+    AFD_videos_demeaned = AFD_videos - mean(AFD_videos, na.rm = TRUE)
+  )
+
+afd_3way_outcomes <- c("Like", "Share", "Bookmark", "Report")
+
+afd_3way_coef_map <- list(
+  "(Intercept)" = "Intercept",
+  "treatment_demeaned" = "Treatment (demeaned)",
+  "AFD_supporter_demeaned" = "AfD supporter (demeaned)",
+  "AFD_videos_demeaned" = "AfD video (demeaned)",
+  "treatment_demeaned:AFD_supporter_demeaned" = "Treatment × AfD supporter (demeaned)",
+  "treatment_demeaned:AFD_videos_demeaned" = "Treatment × AfD video (demeaned)",
+  "AFD_supporter_demeaned:AFD_videos_demeaned" = "AfD supporter × AfD video (demeaned)",
+  "treatment_demeaned:AFD_supporter_demeaned:AFD_videos_demeaned" =
+    "Treatment × AfD supporter × AfD video (demeaned)"
+)
+
+fit_afd_3way <- function(df, outcome_name) {
+  y <- v_outcomes[[outcome_name]]
+  feols(
+    as.formula(
+      paste0(
+        y,
+        " ~ treatment_demeaned * AFD_supporter_demeaned * AFD_videos_demeaned"
+      )
+    ),
+    data = df,
+    cluster = ~ID
+  )
+}
+
+models_afd_3way <- lapply(afd_3way_outcomes, function(Y) {
+  fit_afd_3way(df_afd_3way, Y)
+}) |>
+  setNames(afd_3way_outcomes)
+
+write_rds(models_afd_3way, file.path(est_dir, "tab_afd_video_3way_demeaned.rds"))
+
+texreg::texreg(
+  models_afd_3way,
+  file = file.path("tabs", "tab_afd_video_3way_demeaned.tex"),
+  digits = 3,
+  include.ci = FALSE,
+  custom.model.names = afd_3way_outcomes,
+  custom.coef.map = afd_3way_coef_map,
+  caption = "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, short-term). SEs clustered by respondent.",
+  label = "tab:afd_video_3way_demeaned",
+  stars = texreg_stars
+)
+
+texreg::htmlreg(
+  models_afd_3way,
+  digits = 3,
+  include.ci = FALSE,
+  custom.model.names = afd_3way_outcomes,
+  custom.coef.map = afd_3way_coef_map,
+  caption = "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, short-term). SEs clustered by respondent.",
+  stars = texreg_stars
 )
 ```
 
@@ -1079,7 +1449,7 @@ texreg::texreg(
   custom.coef.map = partisan_hetero_coef_map,
   caption = "Overall treatment × partisan: Like/Report/Share/Bookmark (emotional political videos, short-term, pooled across parties). SEs clustered by respondent.",
   label = "tab:treatment_x_partisan_pooled",
-  stars = c(0.001, 0.01, 0.05)
+  stars = texreg_stars
 )
 
 texreg::htmlreg(
@@ -1089,7 +1459,7 @@ texreg::htmlreg(
   custom.model.names = partisan_outcomes,
   custom.coef.map = partisan_hetero_coef_map,
   caption = "Overall treatment × partisan: Like/Report/Share/Bookmark (emotional political videos, short-term, pooled across parties). SEs clustered by respondent.",
-  stars = c(0.001, 0.01, 0.05)
+  stars = texreg_stars
 )
 ```
 
@@ -1101,7 +1471,7 @@ $$
 \text{engage} = \frac{\text{share} + \text{like} + \text{bookmark}}{3}
 $$
 
-and report simple short-term treatment effects (`Y ~ Treatment | video`, cluster by `ID`) on **emotionally manipulative political videos only** (`strategy_2 == strategies[1]` / `"political\n(emotional)"` in `wave_9`; same sample restriction as the AfD video hetero and pooled partisan tables). One table reports the three components (Like, Share, Bookmark) plus the engage index as a fourth column. Specification matches the main `f_I` ATE (video FE + respondent clustering) for all four outcomes.
+and report simple short-term treatment effects (`Y ~ Treatment | video`, cluster by `ID`) on **emotionally manipulative political videos only** (`strategy_2 == strategies[1]` / `"political\n(emotional)"` in `wave_9`; same sample restriction as the AfD video hetero and pooled partisan tables). One table reports the three components (Like, Share, Bookmark) plus the engage index as a fourth column. Specification matches the main `f_I` ATE (video FE + respondent clustering) for all four outcomes. Coefficients keep conventional stars from unadjusted *p*-values; an extra row reports Benjamini–Hochberg FDR-adjusted *p*-values across the three component tests only (Engage blank/`---` — not in that family).
 
 ```{r}
 #| label: appendix-pap-h1a-engage-reconciliation
@@ -1140,9 +1510,26 @@ h1_outcomes <- c(
 
 models_h1_engage <- lapply(h1_outcomes, function(y) fit_h1_ate(df_h1_emo, y))
 
+# BH FDR across the three PAP H1a components (not Engage)
+h1_comp <- c("Like", "Share", "Bookmark")
+p_h1_raw <- sapply(
+  models_h1_engage[h1_comp],
+  \(m) coeftable(m)["workshop_Treatment", "Pr(>|t|)"]
+)
+p_h1_bh <- p.adjust(p_h1_raw, method = "BH")
+h1_bh_row <- c(sprintf("%.3f", p_h1_bh[h1_comp]), "---")
+names(h1_bh_row) <- names(models_h1_engage)
+
 write_rds(models_h1_engage, file.path(est_dir, "tab_pap_h1a_engage_emotional.rds"))
 
-h1_caption <- "PAP H1a reconciliation: Like, Share, Bookmark, and engage = mean(share, like, bookmark) on emotional political videos (short-term). Video FE; SEs clustered by respondent."
+h1_caption <- paste(
+  "PAP H1a reconciliation: Like, Share, Bookmark, and engage = mean(share, like, bookmark)",
+  "on emotional political videos (short-term). Video FE; SEs clustered by respondent.",
+  "Row p (BH FDR): Benjamini--Hochberg FDR correction across the three component tests",
+  "(Like, Share, Bookmark); Engage is not in that family."
+)
+
+h1_gof_bh <- list("p (BH FDR)" = unname(h1_bh_row))
 
 texreg::texreg(
   models_h1_engage,
@@ -1151,9 +1538,10 @@ texreg::texreg(
   include.ci = FALSE,
   custom.model.names = names(models_h1_engage),
   custom.coef.map = h1_ate_coef_map,
+  custom.gof.rows = h1_gof_bh,
   caption = h1_caption,
   label = "tab:pap_h1a_engage_emotional",
-  stars = c(0.001, 0.01, 0.05)
+  stars = texreg_stars
 )
 
 cat("\n### Engage index and components (emotional political)\n\n")
@@ -1163,22 +1551,23 @@ texreg::htmlreg(
   include.ci = FALSE,
   custom.model.names = names(models_h1_engage),
   custom.coef.map = h1_ate_coef_map,
+  custom.gof.rows = h1_gof_bh,
   caption = h1_caption,
-  stars = c(0.001, 0.01, 0.05)
+  stars = texreg_stars
 )
 ```
 
 # Exploratory: Causal-forest CATE correlations across outcomes
 
-**Exploratory appendix analysis** (not a primary confirmatory claim). We estimate respondent-level conditional average treatment effects (CATEs) separately for Like, Share, Bookmark, and Report using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes.
+**Exploratory appendix analysis** (not a primary confirmatory claim). We estimate conditional average treatment effects (CATEs) separately for Like, Share, Bookmark, and Report using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes.
 
 Fitting four causal forests is **slow**. The switch `RUN_FORESTS` in the configuration chunk controls whether forests are refit (`TRUE`) or whether the document reuses saved CATEs from `ests/fig_causal_forest_cate_corr.rds` (`FALSE`, default) and only rebuilds the correlation grid / figure. Set `RUN_FORESTS <- TRUE` once after a code or data change that affects the forests, then return it to `FALSE` for ordinary compiles.
 
-**Unit of analysis.** Each observation is an **ID × sending-party** cell: within emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), we take the mean of each binary outcome over videos in that cell. There is no minimum-videos filter. Treatment $W$ is `workshop_Treatment` (constant within respondent). Clustering is by individual (`clusters = ID`).
+**Unit of analysis.** Each observation is a **person × sending-party** cell (`ID` × `party`): on emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), outcomes are the mean of the binary engagement indicators over videos from that party shown to that respondent. A unique unit id `pp_id` identifies each person–party cell; all OOB $\hat\tau$ predictions are at this level (not person–video). Treatment $W$ is `workshop_Treatment` (constant within respondent). We try `clusters = ID` (person, higher than the unit) so multiple party-cells per person are not treated as independent; if `grf` rejects that, forests are fit **without** clustering rather than coarsening units.
 
-**Covariates $X$.** Respondent-level covariates from `labels_en`, merged from `df_w9_w10` via `ID` / `id_w9`. **Sending-party dummies are not included in $X$** (party enters only through the unit definition). Rows with missing $Y$, $W$, or $X$ are dropped (listwise). Covariates with very high missingness on this sample (notably structurally missing `tiktok_potential_*` for current users, and `berufliche_stellung`) are omitted from $X$ before listwise deletion so the forest sample is not restricted to non-users; omissions are reported in the chunk output when forests are fit.
+**Covariates $X$.** Respondent-level covariates from `labels_en`, merged from `df_w9_w10` via `ID` / `id_w9`, **plus full sending-party dummies** for the cell's `party` (same coding as `party_codes` / party names). Party must enter $X$ so $\hat\tau(X)$ can differ by sending party (including AfD vs non-AfD). Rows with missing $Y$, $W$, or $X$ are dropped (listwise). Covariates with very high missingness on this sample (notably structurally missing `tiktok_potential_*` for current users, and `berufliche_stellung`) are omitted from $X$ before listwise deletion so the forest sample is not restricted to non-users; omissions are reported in the chunk output when forests are fit.
 
-**Reading the 4×4.** Off-diagonal panels scatter OOB CATE estimates for one outcome against another (each point = one ID×party unit). Positive correlation means people with more positive estimated effects on one outcome also tend to have more positive effects on the other. Of particular interest: whether more negative Like CATEs co-occur with more positive Report CATEs. Diagonal panels show the marginal distribution of each outcome's CATE. A numeric correlation matrix is saved alongside the figure.
+**Reading the 4×4.** Off-diagonal panels scatter OOB CATE estimates for one outcome against another (each point = one person×party unit). Positive correlation means units with more positive estimated effects on one outcome also tend to have more positive effects on the other. Of particular interest: whether more negative Like CATEs co-occur with more positive Report CATEs. Diagonal panels show the marginal distribution of each outcome's CATE. A numeric correlation matrix is saved alongside the figure.
 
 ```{r}
 #| label: appendix-causal-forest-cate-corr
@@ -1192,21 +1581,37 @@ cf_outcomes <- c("Like", "Share", "Bookmark", "Report")
 cf_est_path <- file.path(est_dir, "fig_causal_forest_cate_corr.rds")
 
 if (isTRUE(RUN_FORESTS)) {
-  # --- Build ID × party means on emotional-political wave_9 -----------------
+  # --- Person × sending-party means on emotional-political wave_9 -----------
   df_cf_vid <- datasets$wave_9 |>
     filter(strategy_2 == strategies[1])
 
-  df_cf_agg <- df_cf_vid |>
+  rename_map <- setNames(unname(v_outcomes[cf_outcomes]), cf_outcomes)
+  party_order_cf_x <- names(party_codes)
+
+  df_cf_base <- df_cf_vid |>
+    transmute(
+      ID = as.character(ID),
+      party = party,
+      W = as.numeric(workshop_Treatment),
+      across(all_of(unname(v_outcomes[cf_outcomes])))
+    ) |>
+    rename(!!!rename_map) |>
+    filter(party %in% party_order_cf_x) |>
     group_by(ID, party) |>
     summarise(
-      across(all_of(unname(v_outcomes[cf_outcomes])), \(z) mean(z, na.rm = TRUE)),
-      W = mean(as.numeric(workshop_Treatment)),
+      W = first(W),
+      across(all_of(cf_outcomes), \(z) mean(as.numeric(z), na.rm = TRUE)),
       n_videos = n(),
       .groups = "drop"
-    )
-  # Rename outcome columns to friendly labels
-  rename_map <- setNames(unname(v_outcomes[cf_outcomes]), cf_outcomes)
-  df_cf_agg <- df_cf_agg |> rename(!!!rename_map)
+    ) |>
+    mutate(pp_id = paste(ID, party, sep = "__"))
+
+  # Sending-party dummies for X (required so τ̂(X) can differ by party / AfD)
+  for (p in party_order_cf_x) {
+    col <- paste0("video_party_", gsub("[^A-Za-z0-9]+", "_", p))
+    df_cf_base[[col]] <- as.integer(df_cf_base$party == p)
+  }
+  party_x_cols <- paste0("video_party_", gsub("[^A-Za-z0-9]+", "_", party_order_cf_x))
 
   # --- Merge respondent covariates from labels_en / df_w9_w10 ---------------
   x_candidates <- names(labels_en)
@@ -1219,14 +1624,14 @@ if (isTRUE(RUN_FORESTS)) {
       across(all_of(x_available), \(z) as.numeric(haven::zap_labels(z)))
     )
 
-  df_cf <- df_cf_agg |>
-    mutate(ID = as.character(ID)) |>
+  df_cf <- df_cf_base |>
     left_join(df_cf_covs, by = "ID")
 
-  # Drop high-missingness covariates before listwise deletion (document)
+  # Drop high-missingness respondent covariates before listwise deletion
   miss_rate_x <- sapply(x_available, \(v) mean(is.na(df_cf[[v]])))
   x_high_miss <- names(miss_rate_x)[miss_rate_x > 0.25]
-  x_use <- setdiff(x_available, x_high_miss)
+  x_resp_use <- setdiff(x_available, x_high_miss)
+  x_use <- c(x_resp_use, party_x_cols)
 
   n_before <- nrow(df_cf)
   df_cf_cc <- df_cf |>
@@ -1237,12 +1642,13 @@ if (isTRUE(RUN_FORESTS)) {
 
   cat(
     "Causal-forest sample (exploratory; RUN_FORESTS = TRUE)\n",
-    "  Video rows (emotional political, wave_9): ", nrow(df_cf_vid), "\n",
-    "  ID × party cells before listwise: ", n_before, "\n",
-    "  ID × party cells after listwise:  ", n_after,
+    "  Unit: person × sending party (emotional political, wave_9)\n",
+    "  ID×party cells before listwise: ", n_before, "\n",
+    "  ID×party cells after listwise:  ", n_after,
     "  (unique IDs: ", n_id_after, ")\n",
     "  labels_en covariates available: ", length(x_available),
     " / ", length(x_candidates), "\n",
+    "  Sending-party dummies in X: ", length(party_x_cols), "\n",
     sep = ""
   )
   if (length(x_missing_from_data)) {
@@ -1250,7 +1656,7 @@ if (isTRUE(RUN_FORESTS)) {
   }
   if (length(x_high_miss)) {
     cat(
-      "  Dropped from X (>25% missing on ID×party sample):\n",
+      "  Dropped from X (>25% missing on person×party sample):\n",
       paste0(
         "    - ", x_high_miss, " (", sprintf("%.1f%%", 100 * miss_rate_x[x_high_miss]), ")",
         collapse = "\n"
@@ -1262,38 +1668,88 @@ if (isTRUE(RUN_FORESTS)) {
   cat("  X columns used (", length(x_use), "): ", paste(x_use, collapse = ", "), "\n", sep = "")
 
   X_cf <- as.matrix(df_cf_cc[, x_use, drop = FALSE])
-  W_cf <- df_cf_cc$W
-  clusters_cf <- as.numeric(factor(df_cf_cc$ID))
+  storage.mode(X_cf) <- "double"
+  W_cf <- as.numeric(df_cf_cc$W)
+  clusters_person <- as.numeric(factor(df_cf_cc$ID))
+
+  # Try person-level clustering (higher than unit); drop if grf rejects it
+  cf_clusters_used <- "ID"
+  clusters_arg <- clusters_person
 
   # --- Four causal forests; OOB CATE predictions (fit one-at-a-time) --------
   cate_mat <- matrix(NA_real_, nrow = nrow(df_cf_cc), ncol = length(cf_outcomes))
   colnames(cate_mat) <- cf_outcomes
   for (Y in cf_outcomes) {
     cat("Fitting causal forest for ", Y, "...\n", sep = "")
-    fit <- grf::causal_forest(
-      X = X_cf,
-      Y = df_cf_cc[[Y]],
-      W = W_cf,
-      clusters = clusters_cf
+    y_vec <- as.numeric(df_cf_cc[[Y]])
+    fit <- tryCatch(
+      {
+        if (!is.null(clusters_arg)) {
+          grf::causal_forest(X = X_cf, Y = y_vec, W = W_cf, clusters = clusters_arg)
+        } else {
+          grf::causal_forest(X = X_cf, Y = y_vec, W = W_cf)
+        }
+      },
+      error = function(e) {
+        if (!is.null(clusters_arg)) {
+          cat(
+            "  clusters = ID failed for ", Y, " (", conditionMessage(e),
+            "); dropping clustering for remaining forests.\n",
+            sep = ""
+          )
+          cf_clusters_used <<- "none"
+          clusters_arg <<- NULL
+          grf::causal_forest(X = X_cf, Y = y_vec, W = W_cf)
+        } else {
+          stop(e)
+        }
+      }
     )
     cate_mat[, Y] <- as.numeric(predict(fit)$predictions)
     rm(fit)
   }
+  if (identical(cf_clusters_used, "ID")) {
+    cat("  Clustering used: clusters = ID (person; multiple party-units per cluster).\n")
+  } else {
+    cat("  Clustering used: none (person-level clustering dropped).\n")
+  }
 
   df_cate <- df_cf_cc |>
-    select(ID, party, n_videos, W) |>
+    select(pp_id, ID, party, W) |>
     bind_cols(as_tibble(cate_mat))
 
   cate_cor <- cor(cate_mat, use = "pairwise.complete.obs")
+
+  # Within-ID Like CATE variation (sanity: party in X should yield non-zero range)
+  within_like <- df_cate |>
+    group_by(ID) |>
+    summarise(
+      n_parties = n(),
+      like_range = diff(range(Like, na.rm = TRUE)),
+      .groups = "drop"
+    )
+  pct_vary <- mean(within_like$like_range > 1e-12, na.rm = TRUE)
+  cat(
+    "  Within-ID Like CATE: share of IDs with range > 0 = ",
+    sprintf("%.1f%%", 100 * pct_vary),
+    " (median range = ", sprintf("%.4f", median(within_like$like_range, na.rm = TRUE)),
+    ")\n",
+    sep = ""
+  )
 
   cf_estimates <- list(
     cate_unit = df_cate,
     cate_cor = cate_cor,
     n_cells = n_after,
     n_ids = n_id_after,
+    unit = "person-party",
+    clusters_used = cf_clusters_used,
     x_used = x_use,
     x_dropped_high_miss = x_high_miss,
-    miss_rate_x = miss_rate_x
+    miss_rate_x = miss_rate_x,
+    party_x_cols = party_x_cols,
+    within_id_like_pct_vary = pct_vary,
+    within_id_like_median_range = median(within_like$like_range, na.rm = TRUE)
   )
 
   # Persist CATEs (and metadata needed for plotting) before graphing
@@ -1334,6 +1790,21 @@ if (isTRUE(RUN_FORESTS)) {
       call. = FALSE
     )
   }
+  if (!("party" %in% names(df_cate))) {
+    stop(
+      "Saved cate_unit is missing party (expected for person×party units). ",
+      "Set RUN_FORESTS <- TRUE once to refit and save.",
+      call. = FALSE
+    )
+  }
+  unit_loaded <- if (!is.null(cf_estimates$unit)) cf_estimates$unit else "unknown"
+  if (!identical(unit_loaded, "person-party")) {
+    stop(
+      "Saved artifact unit = '", unit_loaded, "' (expected person-party). ",
+      "Set RUN_FORESTS <- TRUE once to refit and save.",
+      call. = FALSE
+    )
+  }
   cate_mat <- as.matrix(df_cate[, cf_outcomes, drop = FALSE])
   n_cells_loaded <- if (!is.null(cf_estimates$n_cells)) cf_estimates$n_cells else nrow(df_cate)
   n_ids_loaded <- if (!is.null(cf_estimates$n_ids)) {
@@ -1341,11 +1812,32 @@ if (isTRUE(RUN_FORESTS)) {
   } else {
     dplyr::n_distinct(df_cate$ID)
   }
+  cf_clusters_used <- if (!is.null(cf_estimates$clusters_used)) {
+    cf_estimates$clusters_used
+  } else {
+    "unknown"
+  }
   cat(
-    "  Loaded ID × party cells: ", n_cells_loaded,
-    "  (unique IDs: ", n_ids_loaded, ")\n",
+    "  Loaded person×party units: ", n_cells_loaded,
+    "  (unique IDs: ", n_ids_loaded, "; unit tag: ", unit_loaded,
+    "; clusters: ", cf_clusters_used, ")\n",
     sep = ""
   )
+}
+
+if (!exists("cf_clusters_used")) {
+  cf_clusters_used <- if (!is.null(cf_estimates$clusters_used)) {
+    cf_estimates$clusters_used
+  } else {
+    "unknown"
+  }
+}
+cf_cluster_lab <- if (identical(cf_clusters_used, "ID")) {
+  "clusters = ID"
+} else if (identical(cf_clusters_used, "none")) {
+  "no clustering"
+} else {
+  paste0("clusters = ", cf_clusters_used)
 }
 
 cat("\nCATE correlation matrix (OOB):\n")
@@ -1368,6 +1860,10 @@ for (vx in cf_outcomes) {
 }
 plot_cf_long <- bind_rows(plot_list)
 
+# Shared CATE axis limits for all x panels and off-diagonal y panels.
+# Diagonal histograms keep free count y-scales (see facetted_pos_scales below).
+cate_lim <- c(-0.09, 0.06)
+
 # Correlation annotations for off-diagonal panels
 cor_labels <- as.data.frame(as.table(cate_cor)) |>
   as_tibble() |>
@@ -1376,21 +1872,30 @@ cor_labels <- as.data.frame(as.table(cate_cor)) |>
   mutate(
     var_x = factor(var_x, levels = cf_outcomes),
     var_y = factor(var_y, levels = cf_outcomes),
-    label = sprintf("r = %.2f", r)
+    label = sprintf("r = %.2f", r),
+    x = cate_lim[1] + 0.05 * diff(cate_lim),
+    y = cate_lim[2] - 0.05 * diff(cate_lim)
   )
 
-# Panel-wise ranges for placing labels
-panel_ranges <- plot_cf_long |>
-  filter(!is_diag) |>
-  group_by(var_x, var_y) |>
-  summarise(
-    x = min(x, na.rm = TRUE) + 0.05 * diff(range(x, na.rm = TRUE)),
-    y = max(y, na.rm = TRUE) - 0.05 * diff(range(y, na.rm = TRUE)),
-    .groups = "drop"
-  )
+# Per-panel y scales: fixed CATE limits off-diagonal; NULL = free counts on diagonal.
+# Order matches facet_grid layout (row-major: var_y outer, var_x inner).
+cf_y_scales <- lapply(cf_outcomes, function(vy) {
+  lapply(cf_outcomes, function(vx) {
+    if (identical(vx, vy)) {
+      NULL
+    } else {
+      scale_y_continuous(
+        limits = cate_lim,
+        expand = expansion(mult = 0.02)
+      )
+    }
+  })
+}) |>
+  unlist(recursive = FALSE)
 
-cor_labels <- cor_labels |>
-  left_join(panel_ranges, by = c("var_x", "var_y"))
+# Soft red zero guides: hline on all panels (CATE y = 0 off-diag; count = 0 on diag);
+# vline on all panels (CATE x = 0, including diagonal histograms).
+cf_zero_col <- "#f4a6a6"
 
 fig_cf_cate_corr <- ggplot() +
   geom_point(
@@ -1400,20 +1905,6 @@ fig_cf_cate_corr <- ggplot() +
     size = 0.55,
     color = "grey25"
   ) +
-  geom_hline(
-    data = plot_cf_long |> filter(!is_diag),
-    aes(yintercept = 0),
-    linewidth = 0.2,
-    linetype = "dashed",
-    color = "grey50"
-  ) +
-  geom_vline(
-    data = plot_cf_long |> filter(!is_diag),
-    aes(xintercept = 0),
-    linewidth = 0.2,
-    linetype = "dashed",
-    color = "grey50"
-  ) +
   geom_histogram(
     data = plot_cf_long |> filter(is_diag),
     aes(x = x),
@@ -1422,6 +1913,20 @@ fig_cf_cate_corr <- ggplot() +
     color = "grey40",
     linewidth = 0.2
   ) +
+  geom_hline(
+    data = plot_cf_long,
+    aes(yintercept = 0),
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = cf_zero_col
+  ) +
+  geom_vline(
+    data = plot_cf_long,
+    aes(xintercept = 0),
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = cf_zero_col
+  ) +
   geom_text(
     data = cor_labels,
     aes(x = x, y = y, label = label),
@@ -1429,10 +1934,26 @@ fig_cf_cate_corr <- ggplot() +
     vjust = 1,
     size = 3.1
   ) +
-  facet_grid(rows = vars(var_y), cols = vars(var_x), scales = "free") +
+  # Shared x across all panels (CATE). independent="y" keeps diagonal histogram
+  # counts off the scatter y-axes; facetted_pos_scales then pins off-diagonal
+  # y to the same CATE limits as x.
+  facet_grid2(
+    rows = vars(var_y),
+    cols = vars(var_x),
+    scales = "free_y",
+    independent = "y"
+  ) +
+  scale_x_continuous(
+    limits = cate_lim,
+    expand = expansion(mult = 0.02)
+  ) +
+  facetted_pos_scales(y = cf_y_scales) +
   labs(
     title = "Exploratory: OOB CATE correlations across outcomes",
-    subtitle = "ID × party units; emotional-political videos (wave_9); grf causal forests; clusters = ID",
+    subtitle = paste0(
+      "Person×party units; emotional-political videos (wave_9); grf causal forests; ",
+      cf_cluster_lab
+    ),
     x = "CATE (column outcome)",
     y = "CATE (row outcome)"
   ) +
@@ -1450,6 +1971,101 @@ write_fig(
   plot = fig_cf_cate_corr,
   width = 9,
   height = 9
+)
+```
+
+**Like vs Bookmark CATEs by AfD vs not AfD (viewer × video).** Same OOB forest CATEs as the 4×4 grid (Like and Bookmark columns of `cate_unit`). Exclusive wave-9 party ID (`party_id_w9_*` on `df_w9_w10`) and cell `party` (sending party) are each collapsed to binary **AfD** vs **Not AfD**. Facet order is `AfD`, `Not AfD` on both axes so the **diagonal** is same/same (AfD viewer + AfD sender; not-AfD viewer + not-AfD sender). Respondents with Other/None/missing party ID are dropped from this figure only. Reuses saved CATEs when `RUN_FORESTS <- FALSE` (no forest refit). Because units are person×party and sending party is in $X$, CATEs can differ by party within the same respondent.
+
+```{r}
+#| label: appendix-causal-forest-like-bookmark-by-party
+#| fig-width: 7
+#| fig-height: 7
+
+# Binary AfD vs Not AfD (order keeps same/same on the diagonal)
+afd_facet_levels <- c("AfD", "Not AfD")
+party_order_cf <- names(party_codes)
+
+# Viewer party: exclusive wave-9 party ID, then collapse to AfD vs Not AfD
+viewer_party_lookup <- {
+  stubs <- unname(party_codes[party_order_cf])
+  party_mat <- sapply(stubs, function(stub) {
+    as.integer(df_w9_w10[[paste0("party_id_w9_", stub)]] == 1)
+  })
+  viewer <- rep(NA_character_, nrow(df_w9_w10))
+  for (j in seq_along(stubs)) {
+    hit <- which(party_mat[, j] == 1L)
+    viewer[hit] <- party_order_cf[j]
+  }
+  tibble(
+    ID = as.character(df_w9_w10$id_w9),
+    party_viewer_full = viewer
+  ) |>
+    distinct(ID, .keep_all = TRUE)
+}
+
+df_cate_lb <- df_cate |>
+  mutate(ID = as.character(ID)) |>
+  left_join(viewer_party_lookup, by = "ID") |>
+  filter(
+    !is.na(party_viewer_full),
+    party_viewer_full %in% party_order_cf,
+    party %in% party_order_cf
+  ) |>
+  mutate(
+    party_viewer = factor(
+      ifelse(party_viewer_full == "AfD", "AfD", "Not AfD"),
+      levels = afd_facet_levels
+    ),
+    party_video = factor(
+      ifelse(party == "AfD", "AfD", "Not AfD"),
+      levels = afd_facet_levels
+    )
+  )
+
+cat(
+  "Like vs Bookmark CATE by AfD vs Not AfD (exploratory)\n",
+  "  Person×party units with known viewer party: ", nrow(df_cate_lb),
+  "  (unique IDs: ", dplyr::n_distinct(df_cate_lb$ID), ")\n",
+  "  Facet rows = viewer AfD/Not AfD; cols = sender AfD/Not AfD; ",
+  "diagonal = same/same.\n",
+  sep = ""
+)
+
+fig_cf_like_bookmark_by_party <- ggplot(
+  df_cate_lb,
+  aes(x = Like, y = Bookmark)
+) +
+  geom_hline(yintercept = 0, linewidth = 0.3, linetype = "dashed", color = "grey50") +
+  geom_vline(xintercept = 0, linewidth = 0.3, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.15, size = 0.7, color = "grey25") +
+  facet_grid(
+    rows = vars(party_viewer),
+    cols = vars(party_video),
+    labeller = labeller(
+      party_viewer = function(x) paste0("Viewer: ", x),
+      party_video = function(x) paste0("Video: ", x)
+    )
+  ) +
+  labs(
+    title = "Exploratory: Like vs Bookmark OOB CATEs by AfD vs Not AfD",
+    subtitle = "Rows = viewer; cols = sender; diagonal = same/same. Emotional-political wave_9; person×party units",
+    x = "Like CATE",
+    y = "Bookmark CATE"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", color = "grey80"),
+    strip.text = element_text(size = 10),
+    axis.text = element_text(size = 9)
+  )
+
+write_fig(
+  stem = "fig_causal_forest_like_bookmark_by_party",
+  estimates = df_cate_lb,
+  plot = fig_cf_like_bookmark_by_party,
+  width = 7,
+  height = 7
 )
 ```
 
@@ -1516,73 +2132,14 @@ for (D in c("wave_9", "wave_10")) {
 
 ### f_IIc3: by partisanship and party
 
-This section estimates treatment effects by party and partisanship, with nested facet labels.
+Estimation and figures saved earlier under `# Article-figure dependencies` (needed by Figure 1). Redisplay:
 
 ```{r}
-#| label: analysis-f_IIc3-partisanship-party
+#| label: analysis-f_IIc3-partisanship-party-redisplay
 for (D in c("wave_9", "wave_10")) {
-  df <- datasets[[D]]
-
   for (OG in names(l_outcomegroups)) {
-    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
-      lapply(strategies, function(S)
-        lapply(names(l_partisanship), function(PS)
-          lapply(names(party_codes), function(P) {
-            df_temp <- df |> filter(strategy_2 == S, partisan %in% l_partisanship[[PS]], party == P)
-            y <- df_temp[[v_outcomes[Y]]]
-            if (nrow(df_temp) == 0 || all(is.na(y)) || length(unique(na.omit(y))) < 2) {
-              print(paste("skipping ", paste(P, PS, S, Y, sep = "/"), " 
-                          (NO ESTIMATION POSSIBLE: constant/NA DV)"))
-              return(NULL)
-            }
-            run_feols_tidy(
-              df = df_temp,
-              outcome_var = v_outcomes[Y],
-              extra_cols = list(
-                outcome = Y,
-                strategy = S,
-                partisan = as.character(PS),
-                party = P
-              )
-            )
-          })
-        ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
-      mutate(
-        outcome = factor(outcome, levels = unique(outcome)),
-        wave = D,
-        wave_label = wave_label_for(D),
-        outcome_group = OG,
-        figure_id = "f_IIc3"
-      )
-
-    plot <- estimates |>
-      gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
-      facet_nested(
-        rows = vars(party, partisan),
-        cols = vars(outcome),
-        strip = strip_nested(
-          text_y = list(
-            element_text(angle = 90),
-            element_text(angle = 0, hjust = 0)
-          ),
-          by_layer_y = TRUE
-        )
-      ) +
-      labs(title = unique(estimates$wave_label)) +
-      theme(
-        panel.spacing.y = unit(0, "pt"),
-        strip.background.y = element_rect(fill = "grey90", color = "black"),
-        legend.position = "none",
-        axis.text = element_text(size = 6.5)
-      )
-
-    write_fig(
-      stem = fig_stem("f_IIc3", OG, D),
-      estimates = estimates,
-      plot = plot,
-      width = 7,
-      height = 11
-    )
+    stem <- fig_stem("f_IIc3", OG, D)
+    print(read_rds(file.path(gg_dir, paste0(stem, ".rds"))))
   }
 }
 ```
@@ -2056,102 +2613,12 @@ write_fig(
 ```
 
 ```{r}
-#| label: analysis-shortterm-ptv-plot-by-id
+#| label: analysis-shortterm-ptv-plot-by-id-redisplay
 #| fig-height: 7
 #| fig-width: 7
 
-# Short-term PTV effects by party, split by wave 9 identifiers
-
-ptv_short_by_id_raw <-
-  party_codes |>
-  lapply(function(party) {
-    pre_var <- paste0("ptv_w9_pre_", party)
-    post_var <- paste0("ptv_w9_post_", party)
-    id_var  <- paste0("party_id_w9_", party)
-
-    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
-      as.formula()
-
-    # All respondents (conditional on continuous baseline PTV)
-    m_all <- lm_robust(fml, data = df_w9_w10)
-
-    # Among identifiers (party ID at wave 9 == 1)
-    m_id <- lm_robust(
-      fml,
-      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
-    )
-
-    # Among non-identifiers (party ID at wave 9 == 0)
-    m_non <- lm_robust(
-      fml,
-      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
-    )
-
-    dplyr::bind_rows(
-      tidy(m_all) |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "All respondents"),
-      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "Identifiers"),
-      tidy(m_non) |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "Non-identifiers")
-    ) |>
-      dplyr::mutate(party = party_names[[party]])
-  }) |>
-  dplyr::bind_rows()
-
-party_order_short <-
-  ptv_short_by_id_raw |>
-  dplyr::filter(group == "All respondents") |>
-  dplyr::arrange(estimate) |>
-  dplyr::pull(party)
-
-ptv_short_by_id <-
-  ptv_short_by_id_raw |>
-  dplyr::mutate(
-    party = factor(party, levels = party_order_short),
-    group = factor(
-      group,
-      levels = c("All respondents", "Identifiers", "Non-identifiers")
-    )
-  )
-
-fig_shortterm_ptv_by_id <-
-  ptv_short_by_id |>
-  ggplot(aes(x = estimate, y = party, color = group)) +
-  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
-  geom_errorbarh(
-    aes(xmin = conf.low, xmax = conf.high),
-    position = position_dodge(width = 0.6),
-    height = 0.2
-  ) +
-  geom_text(
-    aes(
-      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
-      group = group
-    ),
-    position = position_dodge(width = 0.6),
-    hjust = 0.5,
-    vjust = -0.7,
-    size = 2.5,
-    show.legend = FALSE
-  ) +
-  labs(
-    x = "Effect of workshop on short-term PTV (wave 9, 0–1 scale)",
-    y = "Party",
-    color = NULL,
-    title = "Short-term PTV effects of digital literacy workshop",
-    subtitle = "Average effect, identifiers, and non-identifiers"
-  ) +
-  theme_bw()
-
-write_fig(
-  stem = "fig_shortterm_ptv_by_id",
-  estimates = ptv_short_by_id,
-  plot = fig_shortterm_ptv_by_id,
-  width = 7,
-  height = 9
-)
+# Estimates/plot saved earlier under Article-figure dependencies
+print(read_rds(file.path(gg_dir, "fig_shortterm_ptv_by_id.rds")))
 ```
 
 
@@ -2194,102 +2661,12 @@ write_fig(
 ```
 
 ```{r}
-#| label: analysis-longterm-ptv-plot-by-id
+#| label: analysis-longterm-ptv-plot-by-id-redisplay
 #| fig-height: 7
 #| fig-width: 7
 
-# Long-term PTV effects by party, split by wave 9 identifiers
-
-ptv_long_by_id_raw <-
-  party_codes |>
-  lapply(function(party) {
-    pre_var <- paste0("ptv_w9_pre_", party)
-    post_var <- paste0("ptv_w10_", party)
-    id_var  <- paste0("party_id_w9_", party)
-
-    fml <- paste0(post_var, " ~ workshop * ", pre_var) |>
-      as.formula()
-
-    # All respondents (conditional on continuous baseline PTV)
-    m_all <- lm_robust(fml, data = df_w9_w10)
-
-    # Among identifiers (party ID at wave 9 == 1)
-    m_id <- lm_robust(
-      fml,
-      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 1)
-    )
-
-    # Among non-identifiers (party ID at wave 9 == 0)
-    m_non <- lm_robust(
-      fml,
-      data = df_w9_w10 |> dplyr::filter(!!rlang::sym(id_var) == 0)
-    )
-
-    dplyr::bind_rows(
-      tidy(m_all) |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "All respondents"),
-      tidy(m_id)  |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "Identifiers"),
-      tidy(m_non) |> dplyr::filter(term == "workshop") |>
-        dplyr::mutate(group = "Non-identifiers")
-    ) |>
-      dplyr::mutate(party = party_names[[party]])
-  }) |>
-  dplyr::bind_rows()
-
-party_order_long <-
-  ptv_long_by_id_raw |>
-  dplyr::filter(group == "All respondents") |>
-  dplyr::arrange(estimate) |>
-  dplyr::pull(party)
-
-ptv_long_by_id <-
-  ptv_long_by_id_raw |>
-  dplyr::mutate(
-    party = factor(party, levels = party_order_long),
-    group = factor(
-      group,
-      levels = c("All respondents", "Identifiers", "Non-identifiers")
-    )
-  )
-
-fig_longterm_ptv_by_id <-
-  ptv_long_by_id |>
-  ggplot(aes(x = estimate, y = party, color = group)) +
-  geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
-  geom_point(position = position_dodge(width = 0.6), size = 2.5) +
-  geom_errorbarh(
-    aes(xmin = conf.low, xmax = conf.high),
-    position = position_dodge(width = 0.6),
-    height = 0.2
-  ) +
-  geom_text(
-    aes(
-      label = sprintf("%.3f (p = %.3f)", estimate, p.value),
-      group = group
-    ),
-    position = position_dodge(width = 0.6),
-    hjust = 0.5,
-    vjust = -0.7,
-    size = 2.5,
-    show.legend = FALSE
-  ) +
-  labs(
-    x = "Effect of workshop on long-term PTV (wave 10, 0–1 scale)",
-    y = "Party",
-    color = NULL,
-    title = "Long-term PTV effects of digital literacy workshop",
-    subtitle = "Average effect, identifiers, and non-identifiers"
-  ) +
-  theme_bw()
-
-write_fig(
-  stem = "fig_longterm_ptv_by_id",
-  estimates = ptv_long_by_id,
-  plot = fig_longterm_ptv_by_id,
-  width = 7,
-  height = 9
-)
+# Estimates/plot saved earlier under Article-figure dependencies
+print(read_rds(file.path(gg_dir, "fig_longterm_ptv_by_id.rds")))
 ```
 
 
