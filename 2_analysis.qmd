@@ -54,7 +54,9 @@ pref_var <- "party_preference_"
 strategies <- 
   c("political\n(emotional)", "political\n(neutral)")
 
-# Unified output directories
+# Unified output directories (estimates / ggplot objects / PDFs)
+est_dir <- "ests"
+gg_dir  <- "ggs"
 fig_dir <- "figs"
 
 # Filename suffix by wave
@@ -62,6 +64,15 @@ wave_suffix <- c(
   wave_9 = "_shortterm",
   wave_10 = "_longterm"
 )
+
+wave_label_for <- function(wave) {
+  if (wave == "wave_9") "Short-term Effects" else "Long-term Effects"
+}
+
+# Stem matches existing PDF names, e.g. f_I_shortterm, f_I_other_longterm
+fig_stem <- function(prefix, outcome_group, wave) {
+  paste0(prefix, str_replace(outcome_group, "main", ""), wave_suffix[[wave]])
+}
 
 # Outcomes and groups
 v_outcomes <- c(
@@ -259,6 +270,34 @@ run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
     tidy(conf.int = TRUE) |>
     mutate(!!!extra_cols)
 }
+
+# Persist estimates, ggplot object, and PDF under matching stems
+ensure_fig_dirs <- function() {
+  dir.create(est_dir, showWarnings = FALSE)
+  dir.create(gg_dir, showWarnings = FALSE)
+  dir.create(fig_dir, showWarnings = FALSE)
+}
+
+write_fig <- function(stem, estimates, plot, width = NA, height = NA,
+                      device = NULL) {
+  ensure_fig_dirs()
+  write_rds(estimates, file.path(est_dir, paste0(stem, ".rds")))
+  write_rds(plot, file.path(gg_dir, paste0(stem, ".rds")))
+  # cairo_pdf is preferred when available; plain pdf works on Windows without Cairo
+  if (is.null(device)) {
+    device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else grDevices::pdf
+  }
+  save_args <- list(
+    filename = file.path(fig_dir, paste0(stem, ".pdf")),
+    plot = plot,
+    device = device
+  )
+  if (!is.na(width)) save_args$width <- width
+  if (!is.na(height)) save_args$height <- height
+  do.call(ggsave, save_args)
+  print(plot)
+  invisible(plot)
+}
 ```
 
 
@@ -378,7 +417,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_I <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(unique(df$strategy_2), function(S) {
         df_sub <- df |> filter(strategy_2 == S)
         run_feols_tidy(
@@ -390,24 +429,25 @@ for (D in c("wave_9", "wave_10")) {
         bind_rows()
     ) |>
       bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_I"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_I <- df_f_I |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_grid(cols = vars(outcome)) +
-      labs(title = wave_label)
+      labs(title = unique(estimates$wave_label))
 
-    print(gg_f_I)
-    ggsave(
-      filename = paste0(
-        fig_dir, "/f_I", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
-      ),
-      plot = gg_f_I,
+    write_fig(
+      stem = fig_stem("f_I", OG, D),
+      estimates = estimates,
+      plot = plot,
       width = 7,
-      height = 3,
-      device = cairo_pdf
+      height = 3
     )
   }
 }
@@ -425,7 +465,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_IIa <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(party_codes), function(P) {
           df_sub <- df |> filter(strategy_2 == S, party == P)
@@ -440,24 +480,25 @@ for (D in c("wave_9", "wave_10")) {
         bind_rows()
     ) |>
       bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIa"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_IIa <- df_f_IIa |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_grid(cols = vars(outcome), rows = vars(party)) +
-      labs(title = wave_label)
+      labs(title = unique(estimates$wave_label))
 
-    print(gg_f_IIa)
-    ggsave(
-      filename = paste0(
-        fig_dir, "/f_IIa", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
-      ),
-      plot = gg_f_IIa,
+    write_fig(
+      stem = fig_stem("f_IIa", OG, D),
+      estimates = estimates,
+      plot = plot,
       width = 7,
-      height = 6,
-      device = cairo_pdf
+      height = 6
     )
   }
 }
@@ -474,7 +515,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_IIc <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(l_partisanship), function(PS) {
           df_sub <- df |>
@@ -490,19 +531,26 @@ for (D in c("wave_9", "wave_10")) {
         bind_rows()
     ) |>
       bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIc"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_IIc <- df_f_IIc |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_grid(cols = vars(outcome), rows = vars(partisan)) +
-      labs(title = wave_label)
+      labs(title = unique(estimates$wave_label))
 
-    print(gg_f_IIc)
-    ggsave(filename = paste0(fig_dir, "/f_IIc", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"), 
-           plot = gg_f_IIc, width = 7, height = 6, 
-           device = cairo_pdf)
+    write_fig(
+      stem = fig_stem("f_IIc", OG, D),
+      estimates = estimates,
+      plot = plot,
+      width = 7,
+      height = 6
+    )
   }
 }
 ```
@@ -532,7 +580,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_IIb <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(c("anger", "fear", "superiority"), function(S)
         {
           df_sub <- df |> filter(strategy == S)
@@ -546,24 +594,25 @@ for (D in c("wave_9", "wave_10")) {
         bind_rows()
     ) |>
       bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIb"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_IIb <- df_f_IIb |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_grid(cols = vars(outcome)) +
-      labs(title = wave_label)
+      labs(title = unique(estimates$wave_label))
 
-    print(gg_f_IIb)
-    ggsave(
-      filename = paste0(
-        fig_dir, "/f_IIb", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
-      ),
-      plot = gg_f_IIb,
+    write_fig(
+      stem = fig_stem("f_IIb", OG, D),
+      estimates = estimates,
+      plot = plot,
       width = 7,
-      height = 3,
-      device = cairo_pdf
+      height = 3
     )
   }
 }
@@ -580,7 +629,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_IIc3 <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(l_partisanship), function(PS)
           lapply(names(party_codes), function(P) {
@@ -603,11 +652,15 @@ for (D in c("wave_9", "wave_10")) {
             )
           })
         ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIc3"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_IIc3 <- df_f_IIc3 |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_nested(
         rows = vars(party, partisan),
@@ -620,7 +673,7 @@ for (D in c("wave_9", "wave_10")) {
           by_layer_y = TRUE
         )
       ) +
-      labs(title = wave_label) +
+      labs(title = unique(estimates$wave_label)) +
       theme(
         panel.spacing.y = unit(0, "pt"),
         strip.background.y = element_rect(fill = "grey90", color = "black"),
@@ -628,15 +681,12 @@ for (D in c("wave_9", "wave_10")) {
         axis.text = element_text(size = 6.5)
       )
 
-    print(gg_f_IIc3)
-    ggsave(
-      filename = paste0(
-        fig_dir, "/f_IIc3", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
-      ),
-      plot = gg_f_IIc3,
+    write_fig(
+      stem = fig_stem("f_IIc3", OG, D),
+      estimates = estimates,
+      plot = plot,
       width = 7,
-      height = 11,
-      device = cairo_pdf
+      height = 11
     )
   }
 }
@@ -655,7 +705,7 @@ for (D in c("wave_9", "wave_10")) {
   df <- datasets[[D]]
 
   for (OG in names(l_outcomegroups)) {
-    df_f_IIc3b <- lapply(l_outcomegroups[[OG]], function(Y)
+    estimates <- lapply(l_outcomegroups[[OG]], function(Y)
       lapply(strategies, function(S)
         lapply(names(l_partisanship[1:2]), function(PS)
           lapply(names(party_codes), function(P) {
@@ -677,11 +727,15 @@ for (D in c("wave_9", "wave_10")) {
             )
           })
         ) |> bind_rows()) |> bind_rows()) |> bind_rows() |>
-      mutate(outcome = factor(outcome, levels = unique(outcome)))
+      mutate(
+        outcome = factor(outcome, levels = unique(outcome)),
+        wave = D,
+        wave_label = wave_label_for(D),
+        outcome_group = OG,
+        figure_id = "f_IIc3b"
+      )
 
-    wave_label <- ifelse(D == "wave_9", "Short-term Effects", "Long-term Effects")
-    
-    gg_f_IIc3b <- df_f_IIc3b |>
+    plot <- estimates |>
       gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
       facet_nested(
         rows = vars(party, partisan),
@@ -694,22 +748,19 @@ for (D in c("wave_9", "wave_10")) {
           by_layer_y = TRUE
         )
       ) +
-      labs(title = wave_label) +
+      labs(title = unique(estimates$wave_label)) +
       theme(
         panel.spacing.y = unit(0, "pt"),
         strip.background.y = element_rect(fill = "grey90", color = "black"),
         legend.position = "none"
       )
 
-    print(gg_f_IIc3b)
-    ggsave(
-      filename = paste0(
-        fig_dir, "/f_IIc3b", str_replace(OG, "main", ""), wave_suffix[[D]], ".pdf"
-      ),
-      plot = gg_f_IIc3b,
+    write_fig(
+      stem = fig_stem("f_IIc3b", OG, D),
+      estimates = estimates,
+      plot = plot,
       width = 7,
-      height = 8,
-      device = cairo_pdf
+      height = 8
     )
   }
 }
@@ -758,10 +809,11 @@ fig_attrit_interaction <-
   ) +
   theme_bw()
 
-fig_attrit_interaction
-  ggsave(filename="figs/fig_attrit_interaction.pdf", plot=fig_attrit_interaction)
-
-
+write_fig(
+  stem = "fig_attrit_interaction",
+  estimates = results,
+  plot = fig_attrit_interaction
+)
 ```
 
 
@@ -911,14 +963,12 @@ fig_maintained_all_parties <-
   ) +
   theme_bw()
 
-fig_maintained_all_parties
-
-ggsave(
-  filename = "figs/fig_maintained_support_all_parties.pdf",
+write_fig(
+  stem = "fig_maintained_support_all_parties",
+  estimates = maintained_results,
   plot = fig_maintained_all_parties,
   width = 7,
-  height = 9,
-  device = cairo_pdf
+  height = 9
 )
 ```
 
@@ -998,12 +1048,10 @@ p_arrows <- ggplot(arrow_long, aes(x = w9, y = w10)) +
   theme_bw() +
   theme(legend.title = element_blank())
 
-print(p_arrows)
-
-ggsave(
-  filename = file.path(fig_dir, "party_support_arrows.pdf"),
-  plot = p_arrows,
-  device = cairo_pdf
+write_fig(
+  stem = "party_support_arrows",
+  estimates = list(arrow_long = arrow_long, arrow_segments = arrow_segments),
+  plot = p_arrows
 )
 ```
 
@@ -1061,12 +1109,10 @@ changew9w10 <- plot_change(
   results = over_time_models,
   subtitle = "Effect of treatment on long term support, conditional on initial support")
 
-print(changew9w10)
-
-ggsave(
-  filename = file.path(fig_dir, "party_support_did_ci.pdf"),
-  plot = changew9w10,
-  device = cairo_pdf
+write_fig(
+  stem = "party_support_did_ci",
+  estimates = over_time_models,
+  plot = changew9w10
 )
 
 ```
@@ -1101,12 +1147,10 @@ ptv_short <-
   subtitle = "Effect of treatment on short term support, conditional on initial support")
 
   
-print(ptv_short)
-
-ggsave(
-  filename = file.path(fig_dir, "party_support_ptv_shortterm.pdf"),
-  plot = ptv_short,
-  device = cairo_pdf
+write_fig(
+  stem = "party_support_ptv_shortterm",
+  estimates = short_models,
+  plot = ptv_short
 )
 
 ```
@@ -1201,14 +1245,12 @@ fig_shortterm_ptv_by_id <-
   ) +
   theme_bw()
 
-fig_shortterm_ptv_by_id
-
-ggsave(
-  filename = "figs/fig_shortterm_ptv_by_id.pdf",
+write_fig(
+  stem = "fig_shortterm_ptv_by_id",
+  estimates = ptv_short_by_id,
   plot = fig_shortterm_ptv_by_id,
   width = 7,
-  height = 9,
-  device = cairo_pdf
+  height = 9
 )
 ```
 
@@ -1243,12 +1285,10 @@ ptv_long <-
   subtitle = "Effect of treatment on long term PTV, conditional on initial support")
 
   
-print(ptv_long)
-
-ggsave(
-  filename = file.path(fig_dir, "party_support_ptv_longterm.pdf"),
-  plot = ptv_long,
-  device = cairo_pdf
+write_fig(
+  stem = "party_support_ptv_longterm",
+  estimates = long_models,
+  plot = ptv_long
 )
 
 ```
@@ -1343,14 +1383,12 @@ fig_longterm_ptv_by_id <-
   ) +
   theme_bw()
 
-fig_longterm_ptv_by_id
-
-ggsave(
-  filename = "figs/fig_longterm_ptv_by_id.pdf",
+write_fig(
+  stem = "fig_longterm_ptv_by_id",
+  estimates = ptv_long_by_id,
   plot = fig_longterm_ptv_by_id,
   width = 7,
-  height = 9,
-  device = cairo_pdf
+  height = 9
 )
 ```
 
@@ -1370,11 +1408,10 @@ fig_pid_change <- plot_pid_alluvial(
   title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
 )
 
-print(fig_pid_change)
-ggsave(
-  filename = file.path(fig_dir, "fig_pid_change.pdf"),
-  plot = fig_pid_change,
-  device = cairo_pdf
+write_fig(
+  stem = "fig_pid_change",
+  estimates = pid_overall,
+  plot = fig_pid_change
 )
 ```
 
@@ -1392,11 +1429,10 @@ fig_pid_change_treat <- plot_pid_alluvial(
   title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
 )
 
-print(fig_pid_change_treat)
-ggsave(
-  filename = file.path(fig_dir, "fig_pid_change_treat.pdf"),
-  plot = fig_pid_change_treat,
-  device = cairo_pdf
+write_fig(
+  stem = "fig_pid_change_treat",
+  estimates = pid_treat,
+  plot = fig_pid_change_treat
 )
 ```
 
@@ -1413,13 +1449,11 @@ fig_pid_change_control <- plot_pid_alluvial(
   title_text = "Party identification transitions: Wave 9 \u2192 Wave 10"
 )
 
-print(fig_pid_change_control)
-ggsave(
-  filename = file.path(fig_dir, "fig_pid_change_control.pdf"),
-  plot = fig_pid_change_control,
-  device = cairo_pdf
+write_fig(
+  stem = "fig_pid_change_control",
+  estimates = pid_control,
+  plot = fig_pid_change_control
 )
-
 ```
 
 
@@ -1499,16 +1533,12 @@ p_cor <- ggplot() +
   ) +
   facet_grid(rows = vars(treat), cols = vars(wave))
 
-print(p_cor)
-ggsave(
-  filename = file.path(
-    fig_dir,
-    paste0("correlation_ellipses.pdf")
-  ),
+write_fig(
+  stem = "correlation_ellipses",
+  estimates = cor_long,
   plot = p_cor,
   width = 9,
-  height = 7,
-  device = cairo_pdf
+  height = 7
 )
 ```
 
@@ -1545,9 +1575,12 @@ comments_plot <- comments_df %>%
   theme_bw(base_size = 13) +
   theme(panel.grid.major.x = element_blank())
 
-comments_plot
-ggsave('figs/fig_classification_comments.pdf', width = 8, height = 4)
-
-
+write_fig(
+  stem = "fig_classification_comments",
+  estimates = comments_df,
+  plot = comments_plot,
+  width = 8,
+  height = 4
+)
 ```
 
