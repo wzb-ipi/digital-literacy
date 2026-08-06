@@ -1799,17 +1799,89 @@ texreg::htmlreg(
 )
 ```
 
+# Exploratory: Average watch time vs liking (by treatment)
+
+**Companion descriptive scatter** (same sample definition as the causal forests below). Unit = **person × sending-party** cell on emotionally manipulative political videos (`strategy_2 == strategies[1]`, `wave_9`): mean watch time (`watch_percentage_`) and mean liking (`videoLikep1r`) within each cell, faceted by treatment vs control. Matches the forest sample aggregation so raw outcome co-movement can be compared with CATE co-movement. Cell count is larger than the forest fit sample because forests also require complete covariates in $X$.
+
+```{r}
+#| label: appendix-avg-watch-like-by-treatment
+#| fig-width: 8
+#| fig-height: 4.5
+
+party_order_wl <- names(party_codes)
+
+df_avg_watch_like <- datasets$wave_9 |>
+  filter(
+    strategy_2 == strategies[1],
+    party %in% party_order_wl
+  ) |>
+  transmute(
+    ID = as.character(ID),
+    party = party,
+    treatment = factor(
+      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+      levels = c("Control", "Treatment")
+    ),
+    watch = as.numeric(watch_percentage_),
+    like = as.numeric(videoLikep1r)
+  ) |>
+  group_by(ID, party, treatment) |>
+  summarise(
+    avg_watch = mean(watch, na.rm = TRUE),
+    avg_like = mean(like, na.rm = TRUE),
+    n_videos = n(),
+    .groups = "drop"
+  ) |>
+  filter(is.finite(avg_watch), is.finite(avg_like))
+
+cat(
+  "Average watch time vs liking (person×party; emotional-political wave_9)\n",
+  "  N cells: ", nrow(df_avg_watch_like),
+  "  (unique IDs: ", dplyr::n_distinct(df_avg_watch_like$ID), ")\n",
+  "  Control: ", sum(df_avg_watch_like$treatment == "Control"),
+  "; Treatment: ", sum(df_avg_watch_like$treatment == "Treatment"), "\n",
+  sep = ""
+)
+
+fig_avg_watch_like_by_treatment <- ggplot(
+  df_avg_watch_like,
+  aes(x = avg_watch, y = avg_like)
+) +
+  geom_point(alpha = 0.12, size = 0.7, color = "grey25") +
+  geom_smooth(method = "loess", se = TRUE, linewidth = 0.8, color = "#1b4f72") +
+  facet_wrap(~treatment) +
+  labs(
+    title = "Average watch time vs average liking",
+    subtitle = "Person×party means; emotionally manipulative political videos (wave 9)",
+    x = "Average watch time (share of video duration)",
+    y = "Average liking rate"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", color = "grey80")
+  )
+
+write_fig(
+  stem = "fig_avg_watch_like_by_treatment",
+  estimates = df_avg_watch_like,
+  plot = fig_avg_watch_like_by_treatment,
+  width = 8,
+  height = 4.5
+)
+```
+
 # Exploratory: Causal-forest CATE correlations across outcomes
 
-**Exploratory appendix analysis** (not a primary confirmatory claim). We estimate conditional average treatment effects (CATEs) separately for Like, Share, Bookmark, and Report using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes.
+**Exploratory appendix analysis** (not a primary confirmatory claim). Motivating question: *Are those that pay attention also those that change liking and reporting behavior?* We estimate conditional average treatment effects (CATEs) separately for **Watch Time**, **Skip**, **Like**, and **Report** using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes (attention ↔ engagement).
 
 Fitting four causal forests is **slow**. The switch `RUN_FORESTS` in the configuration chunk controls whether forests are refit (`TRUE`) or whether the document reuses saved CATEs from `ests/fig_causal_forest_cate_corr.rds` (`FALSE`, default) and only rebuilds the correlation grid / figure. Set `RUN_FORESTS <- TRUE` once after a code or data change that affects the forests, then return it to `FALSE` for ordinary compiles.
 
-**Unit of analysis.** Each observation is a **person × sending-party** cell (`ID` × `party`): on emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), outcomes are the mean of the binary engagement indicators over videos from that party shown to that respondent. A unique unit id `pp_id` identifies each person–party cell; all OOB $\hat\tau$ predictions are at this level (not person–video). Treatment $W$ is `workshop_Treatment` (constant within respondent). We try `clusters = ID` (person, higher than the unit) so multiple party-cells per person are not treated as independent; if `grf` rejects that, forests are fit **without** clustering rather than coarsening units.
+**Unit of analysis.** Each observation is a **person × sending-party** cell (`ID` × `party`): on emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), outcomes are the mean of the video-level measures over videos from that party shown to that respondent (Watch Time = `watch_percentage_`; Skip = `skipped_video_`; Like / Report = binary engagement indicators). A unique unit id `pp_id` identifies each person–party cell; all OOB $\hat\tau$ predictions are at this level (not person–video). Treatment $W$ is `workshop_Treatment` (constant within respondent). We try `clusters = ID` (person, higher than the unit) so multiple party-cells per person are not treated as independent; if `grf` rejects that, forests are fit **without** clustering rather than coarsening units.
 
 **Covariates $X$.** Respondent-level covariates from `labels_en`, merged from `df_w9_w10` via `ID` / `id_w9`, **plus full sending-party dummies** for the cell's `party` (same coding as `party_codes` / party names). Party must enter $X$ so $\hat\tau(X)$ can differ by sending party (including AfD vs non-AfD). Rows with missing $Y$, $W$, or $X$ are dropped (listwise). Covariates with very high missingness on this sample (notably structurally missing `tiktok_potential_*` for current users, and `berufliche_stellung`) are omitted from $X$ before listwise deletion so the forest sample is not restricted to non-users; omissions are reported in the chunk output when forests are fit.
 
-**Reading the 4×4.** Off-diagonal panels scatter OOB CATE estimates for one outcome against another (each point = one person×party unit). Positive correlation means units with more positive estimated effects on one outcome also tend to have more positive effects on the other. Of particular interest: whether more negative Like CATEs co-occur with more positive Report CATEs. Diagonal panels show the marginal distribution of each outcome's CATE. A numeric correlation matrix is saved alongside the figure.
+**Reading the 4×4.** Off-diagonal panels scatter OOB CATE estimates for one outcome against another (each point = one person×party unit). Positive correlation means units with more positive estimated effects on one outcome also tend to have more positive effects on the other. Of particular interest for the attention question: whether Watch Time / Skip CATEs co-vary with Like / Report CATEs. Diagonal panels show the marginal distribution of each outcome's CATE. A numeric correlation matrix is saved alongside the figure.
 
 ```{r}
 #| label: appendix-causal-forest-cate-corr
@@ -1818,8 +1890,8 @@ Fitting four causal forests is **slow**. The switch `RUN_FORESTS` in the configu
 
 set.seed(20260804)
 
-# Display / estimation order: Like, Share, Bookmark, Report
-cf_outcomes <- c("Like", "Share", "Bookmark", "Report")
+# Display / estimation order: Watch Time, Skip, Like, Report (attention + engagement)
+cf_outcomes <- c("Watch Time", "Skip", "Like", "Report")
 cf_est_path <- file.path(est_dir, "fig_causal_forest_cate_corr.rds")
 
 if (isTRUE(RUN_FORESTS)) {
@@ -1985,6 +2057,7 @@ if (isTRUE(RUN_FORESTS)) {
     n_cells = n_after,
     n_ids = n_id_after,
     unit = "person-party",
+    outcomes = cf_outcomes,
     clusters_used = cf_clusters_used,
     x_used = x_use,
     x_dropped_high_miss = x_high_miss,
@@ -2027,8 +2100,17 @@ if (isTRUE(RUN_FORESTS)) {
   cate_cor <- cf_estimates$cate_cor
   if (!all(cf_outcomes %in% names(df_cate))) {
     stop(
-      "Saved cate_unit is missing outcome columns. ",
+      "Saved cate_unit is missing outcome columns (expected: ",
+      paste(cf_outcomes, collapse = ", "), "). ",
       "Set RUN_FORESTS <- TRUE once to refit and save.",
+      call. = FALSE
+    )
+  }
+  if (!is.null(cf_estimates$outcomes) && !identical(unname(cf_estimates$outcomes), unname(cf_outcomes))) {
+    stop(
+      "Saved outcomes (", paste(cf_estimates$outcomes, collapse = ", "),
+      ") differ from current cf_outcomes (", paste(cf_outcomes, collapse = ", "),
+      "). Set RUN_FORESTS <- TRUE once to refit and save.",
       call. = FALSE
     )
   }
@@ -2103,8 +2185,12 @@ for (vx in cf_outcomes) {
 plot_cf_long <- bind_rows(plot_list)
 
 # Shared CATE axis limits for all x panels and off-diagonal y panels.
+# Derived from fitted CATEs (Watch Time can differ in scale from binary outcomes).
 # Diagonal histograms keep free count y-scales (see facetted_pos_scales below).
-cate_lim <- c(-0.09, 0.06)
+cate_rng <- range(cate_mat, na.rm = TRUE)
+cate_pad <- 0.05 * diff(cate_rng)
+if (!is.finite(cate_pad) || cate_pad <= 0) cate_pad <- 0.01
+cate_lim <- c(cate_rng[1] - cate_pad, cate_rng[2] + cate_pad)
 
 # Correlation annotations for off-diagonal panels
 cor_labels <- as.data.frame(as.table(cate_cor)) |>
@@ -2216,10 +2302,10 @@ write_fig(
 )
 ```
 
-**Like vs Bookmark CATEs by AfD vs not AfD (viewer × video).** Same OOB forest CATEs as the 4×4 grid (Like and Bookmark columns of `cate_unit`). Exclusive wave-9 party ID (`party_id_w9_*` on `df_w9_w10`) and cell `party` (sending party) are each collapsed to binary **AfD** vs **Not AfD**. Facet order is `AfD`, `Not AfD` on both axes so the **diagonal** is same/same (AfD viewer + AfD sender; not-AfD viewer + not-AfD sender). Respondents with Other/None/missing party ID are dropped from this figure only. Reuses saved CATEs when `RUN_FORESTS <- FALSE` (no forest refit). Because units are person×party and sending party is in $X$, CATEs can differ by party within the same respondent.
+**Watch Time vs Like CATEs by AfD vs not AfD (viewer × video).** Same OOB forest CATEs as the 4×4 grid (**Watch Time** and **Like** columns of `cate_unit`) — companion scatter for the attention↔liking question. Exclusive wave-9 party ID (`party_id_w9_*` on `df_w9_w10`) and cell `party` (sending party) are each collapsed to binary **AfD** vs **Not AfD**. Facet order is `AfD`, `Not AfD` on both axes so the **diagonal** is same/same (AfD viewer + AfD sender; not-AfD viewer + not-AfD sender). Respondents with Other/None/missing party ID are dropped from this figure only. Reuses saved CATEs when `RUN_FORESTS <- FALSE` (no forest refit). Because units are person×party and sending party is in $X$, CATEs can differ by party within the same respondent.
 
 ```{r}
-#| label: appendix-causal-forest-like-bookmark-by-party
+#| label: appendix-causal-forest-watch-like-by-party
 #| fig-width: 7
 #| fig-height: 7
 
@@ -2245,7 +2331,7 @@ viewer_party_lookup <- {
     distinct(ID, .keep_all = TRUE)
 }
 
-df_cate_lb <- df_cate |>
+df_cate_wl <- df_cate |>
   mutate(ID = as.character(ID)) |>
   left_join(viewer_party_lookup, by = "ID") |>
   filter(
@@ -2265,17 +2351,17 @@ df_cate_lb <- df_cate |>
   )
 
 cat(
-  "Like vs Bookmark CATE by AfD vs Not AfD (exploratory)\n",
-  "  Person×party units with known viewer party: ", nrow(df_cate_lb),
-  "  (unique IDs: ", dplyr::n_distinct(df_cate_lb$ID), ")\n",
+  "Watch Time vs Like CATE by AfD vs Not AfD (exploratory)\n",
+  "  Person×party units with known viewer party: ", nrow(df_cate_wl),
+  "  (unique IDs: ", dplyr::n_distinct(df_cate_wl$ID), ")\n",
   "  Facet rows = viewer AfD/Not AfD; cols = sender AfD/Not AfD; ",
   "diagonal = same/same.\n",
   sep = ""
 )
 
-fig_cf_like_bookmark_by_party <- ggplot(
-  df_cate_lb,
-  aes(x = Like, y = Bookmark)
+fig_cf_watch_like_by_party <- ggplot(
+  df_cate_wl,
+  aes(x = `Watch Time`, y = Like)
 ) +
   geom_hline(yintercept = 0, linewidth = 0.3, linetype = "dashed", color = "grey50") +
   geom_vline(xintercept = 0, linewidth = 0.3, linetype = "dashed", color = "grey50") +
@@ -2289,10 +2375,10 @@ fig_cf_like_bookmark_by_party <- ggplot(
     )
   ) +
   labs(
-    title = "Exploratory: Like vs Bookmark OOB CATEs by AfD vs Not AfD",
+    title = "Exploratory: Watch Time vs Like OOB CATEs by AfD vs Not AfD",
     subtitle = "Rows = viewer; cols = sender; diagonal = same/same. Emotional-political wave_9; person×party units",
-    x = "Like CATE",
-    y = "Bookmark CATE"
+    x = "Watch Time CATE",
+    y = "Like CATE"
   ) +
   theme_bw(base_size = 12) +
   theme(
@@ -2303,9 +2389,9 @@ fig_cf_like_bookmark_by_party <- ggplot(
   )
 
 write_fig(
-  stem = "fig_causal_forest_like_bookmark_by_party",
-  estimates = df_cate_lb,
-  plot = fig_cf_like_bookmark_by_party,
+  stem = "fig_causal_forest_watch_like_by_party",
+  estimates = df_cate_wl,
+  plot = fig_cf_watch_like_by_party,
   width = 7,
   height = 7
 )
