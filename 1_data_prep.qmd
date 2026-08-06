@@ -482,6 +482,12 @@ df_w10 <- df_w10 %>%
   ) %>%
   # TikTok splits and attrition indicator, then clean up names
   mutate(
+  uses_facebook  = recode_yes_no(Video_UserFacebook),
+  uses_tiktok    = recode_yes_no(Video_UserTikTok),
+  uses_snapchat  = recode_yes_no(Video_UserSnapchat),
+  uses_pinterest = recode_yes_no(Video_UserPinterest),
+  uses_x         = recode_yes_no(Video_UserX_ehem_Twitter),
+  uses_twitch    = recode_yes_no(Video_UserTwitch),
     # TikTok_User (1=Ja, 2=Nein, 3=kenne TikTok nicht)
     tiktok_user_yes = case_when(
       TikTok_User == 1L ~ 1L,

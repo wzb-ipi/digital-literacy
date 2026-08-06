@@ -1,0 +1,557 @@
+---
+title: "Digital literacy: Watch / engagement diagnostics"
+format:
+  html:
+    embed-resources: true
+    number-sections: true
+    code-fold: true
+    toc: true
+execute:
+  echo: true
+  warning: true
+  message: false
+---
+
+**Purpose.** Self-contained checks on prepared `wave_9` / `wave_10` outputs from `1_data_prep.qmd`. Focus: short- vs long-term **watch → like** (and related watch / skip / report) distributions, scales, and sample sizes that feed `fig_watch_like_short_long` and companions in `2_analysis.qmd`. Not causal; run after data prep.
+
+# Setup
+
+```{r}
+#| label: tests-setup
+
+pacman::p_load(tidyverse, knitr, scales)
+
+treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
+
+strategies_art <- c(
+  "political\n(emotional)",
+  "political\n(neutral)",
+  "entertainment"
+)
+
+horizon_levels <- c("Short-term (wave 9)", "Long-term (wave 10)")
+```
+
+# Data (same prepared outputs as analysis)
+
+```{r}
+#| label: tests-data
+
+wave_9  <- read_rds("data/wave_9.rds")
+wave_10 <- read_rds("data/wave_10.rds")
+
+datasets <- list(
+  `Short-term (wave 9)` = wave_9,
+  `Long-term (wave 10)` = wave_10
+)
+
+prep_row <- function(dat, horizon) {
+  dat |>
+    filter(strategy_2 %in% strategies_art) |>
+    transmute(
+      ID = as.character(ID),
+      strategy = factor(as.character(strategy_2), levels = strategies_art),
+      treatment = factor(
+        ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+        levels = c("Control", "Treatment")
+      ),
+      watch = as.numeric(watch_percentage_),
+      watchtime = as.numeric(watchtime_video_),
+      duration = as.numeric(duration_video_),
+      like = as.numeric(videoLikep1r),
+      report = as.numeric(videoCommentTickedp1r),
+      bookmark = as.numeric(videoBookmarkp1r),
+      skip = as.numeric(skipped_video_),
+      horizon = factor(horizon, levels = horizon_levels)
+    )
+}
+
+df <- bind_rows(
+  prep_row(wave_9, "Short-term (wave 9)"),
+  prep_row(wave_10, "Long-term (wave 10)")
+)
+```
+
+# Variable names and scales
+
+Printed checks for the columns used in watch–like / watch–report figures.
+
+```{r}
+#| label: tests-scale-checks
+
+scale_check <- function(dat, lab) {
+  wp <- as.numeric(dat$watch_percentage_)
+  wt <- as.numeric(dat$watchtime_video_)
+  dur <- as.numeric(dat$duration_video_)
+  ratio <- wt / dur
+  ok <- is.finite(wp) & is.finite(ratio)
+  tibble(
+    wave = lab,
+    n_rows = nrow(dat),
+    n_id = n_distinct(dat$ID),
+    watch_var = "watch_percentage_",
+    like_var = "videoLikep1r",
+    report_var = "videoCommentTickedp1r",
+    skip_var = "skipped_video_",
+    watch_min = min(wp, na.rm = TRUE),
+    watch_max = max(wp, na.rm = TRUE),
+    watch_mean = mean(wp, na.rm = TRUE),
+    watch_median = median(wp, na.rm = TRUE),
+    n_na_watch = sum(is.na(wp)),
+    share_na_watch = mean(is.na(wp)),
+    n_exact0 = sum(wp == 0, na.rm = TRUE),
+    share_exact0_among_nonNA = mean(wp == 0, na.rm = TRUE),
+    n_gt1 = sum(wp > 1, na.rm = TRUE),
+    n_gt100 = sum(wp > 100, na.rm = TRUE),
+    cor_wp_vs_wt_over_dur = if (sum(ok) > 2) cor(wp[ok], ratio[ok]) else NA_real_,
+    mean_abs_wp_minus_ratio = if (sum(ok) > 0) mean(abs(wp[ok] - ratio[ok])) else NA_real_,
+    skip_mean = mean(as.numeric(dat$skipped_video_), na.rm = TRUE),
+    like_mean = mean(as.numeric(dat$videoLikep1r), na.rm = TRUE),
+    report_mean = mean(as.numeric(dat$videoCommentTickedp1r), na.rm = TRUE)
+  )
+}
+
+scale_tbl <- bind_rows(
+  scale_check(wave_9, "wave_9"),
+  scale_check(wave_10, "wave_10")
+)
+
+scale_tbl |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "Scale / completeness: watch_percentage_ should be share of duration on [0, 1] (= watchtime/duration).")
+
+cat(
+  "\nInterpretation:\n",
+  "- Axis label in analysis figures ('share of video duration') matches the 0–1 scale.\n",
+  "- Not seconds; not 0–100 percent.\n",
+  "- Figure chunks filter is.finite(watch) (drop NA); they do not coerce NA → 0.\n",
+  sep = ""
+)
+```
+
+# n by facet (type × treatment × wave)
+
+```{r}
+#| label: tests-n-by-facet
+
+n_facet <- df |>
+  summarise(
+    n_rows = n(),
+    n_id = n_distinct(ID),
+    n_finite_watch = sum(is.finite(watch)),
+    n_finite_watch_like = sum(is.finite(watch) & is.finite(like)),
+    .by = c(horizon, strategy, treatment)
+  ) |>
+  arrange(horizon, strategy, treatment)
+
+n_facet |> kable(caption = "Row and ID counts by type × treatment × wave (all prepared rows in article strategy set).")
+```
+
+# Watch distributions by wave
+
+```{r}
+#| label: tests-watch-hist
+#| fig-width: 9
+#| fig-height: 5
+
+df_watch <- df |> filter(is.finite(watch))
+
+ggplot(df_watch, aes(x = watch, fill = treatment)) +
+  geom_histogram(bins = 40, alpha = 0.55, position = "identity") +
+  scale_fill_manual(values = treat_cols) +
+  facet_grid(cols = vars(horizon), rows = vars(strategy)) +
+  labs(
+    title = "Watch time (share of duration) — histogram",
+    x = "watch_percentage_ (0–1)",
+    y = "Count",
+    fill = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+#| label: tests-watch-ecdf
+#| fig-width: 9
+#| fig-height: 5
+
+ggplot(df_watch, aes(x = watch, color = treatment)) +
+  stat_ecdf(linewidth = 0.8) +
+  scale_color_manual(values = treat_cols) +
+  facet_grid(cols = vars(horizon), rows = vars(strategy)) +
+  labs(
+    title = "Watch time — ECDF",
+    x = "watch_percentage_ (0–1)",
+    y = "F(watch)",
+    color = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+#| label: tests-watch-zero-na
+
+df |>
+  summarise(
+    n = n(),
+    share_na_watch = mean(is.na(watch)),
+    share_exact0_all_rows = mean(!is.na(watch) & watch == 0),
+    share_exact0_among_nonNA = mean(watch == 0, na.rm = TRUE),
+    mean_watch = mean(watch, na.rm = TRUE),
+    median_watch = median(watch, na.rm = TRUE),
+    .by = c(horizon, treatment)
+  ) |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "NA and exact-zero shares for watch by wave × treatment.")
+```
+
+# Like / report by wave
+
+```{r}
+#| label: tests-like-report-means
+#| fig-width: 8
+#| fig-height: 4.5
+
+eng_means <- df |>
+  summarise(
+    like = mean(like, na.rm = TRUE),
+    report = mean(report, na.rm = TRUE),
+    bookmark = mean(bookmark, na.rm = TRUE),
+    n = n(),
+    .by = c(horizon, strategy, treatment)
+  ) |>
+  pivot_longer(c(like, report, bookmark), names_to = "outcome", values_to = "mean")
+
+ggplot(eng_means, aes(x = strategy, y = mean, fill = treatment)) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_manual(values = treat_cols) +
+  facet_grid(rows = vars(outcome), cols = vars(horizon)) +
+  labs(
+    title = "Mean like / report / bookmark by type × treatment × wave",
+    x = NULL,
+    y = "Mean (0/1)",
+    fill = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 30, hjust = 1),
+    legend.position = "bottom"
+  )
+
+eng_means |>
+  mutate(mean = round(mean, 4)) |>
+  kable()
+```
+
+# Skip rates and E(watch | not skip)
+
+```{r}
+#| label: tests-skip-conditional-watch
+#| fig-width: 8
+#| fig-height: 4
+
+skip_tbl <- df |>
+  summarise(
+    n = n(),
+    share_na_skip = mean(is.na(skip)),
+    skip_rate = mean(skip, na.rm = TRUE),
+    mean_watch = mean(watch, na.rm = TRUE),
+    mean_watch_if_not_skip = mean(watch[skip == 0], na.rm = TRUE),
+    mean_watch_if_skip = mean(watch[skip == 1], na.rm = TRUE),
+    n_not_skip = sum(skip == 0, na.rm = TRUE),
+    .by = c(horizon, treatment)
+  )
+
+skip_tbl |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "Skip rates and conditional mean watch.")
+
+ggplot(
+  skip_tbl |>
+    select(horizon, treatment, mean_watch, mean_watch_if_not_skip) |>
+    pivot_longer(-c(horizon, treatment), names_to = "which", values_to = "mean_watch"),
+  aes(x = horizon, y = mean_watch, fill = treatment)
+) +
+  geom_col(position = position_dodge(width = 0.7), width = 0.65) +
+  scale_fill_manual(values = treat_cols) +
+  facet_wrap(~which, ncol = 2) +
+  labs(
+    title = "Mean watch overall vs conditional on not skip",
+    x = NULL,
+    y = "Mean watch (0–1)",
+    fill = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+# cor(watch, like) overall and conditional on watch > 0.05 / 0.1
+
+```{r}
+#| label: tests-cor-watch-like
+#| fig-width: 8
+#| fig-height: 4.5
+
+cor_block <- function(dat, label) {
+  tibble(
+    sample = label,
+    n = nrow(dat),
+    cor_watch_like = cor(dat$watch, dat$like, use = "complete.obs"),
+    cor_watch_report = cor(dat$watch, dat$report, use = "complete.obs"),
+    mean_watch = mean(dat$watch, na.rm = TRUE),
+    mean_like = mean(dat$like, na.rm = TRUE)
+  )
+}
+
+cor_tbl <- df |>
+  filter(is.finite(watch), is.finite(like), is.finite(report)) |>
+  group_by(horizon, treatment) |>
+  group_modify(~ {
+    bind_rows(
+      cor_block(.x, "all finite"),
+      cor_block(.x |> filter(watch > 0.05), "watch > 0.05"),
+      cor_block(.x |> filter(watch > 0.10), "watch > 0.10")
+    )
+  }) |>
+  ungroup()
+
+cor_tbl |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "cor(watch, like) and cor(watch, report) by wave × treatment × subsample.")
+
+ggplot(
+  cor_tbl,
+  aes(x = sample, y = cor_watch_like, fill = treatment)
+) +
+  geom_col(position = position_dodge(width = 0.8), width = 0.7) +
+  scale_fill_manual(values = treat_cols) +
+  facet_wrap(~horizon) +
+  labs(
+    title = "cor(watch, like) by subsample",
+    x = NULL,
+    y = "Correlation",
+    fill = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(
+    axis.text.x = element_text(angle = 20, hjust = 1),
+    legend.position = "bottom"
+  )
+```
+
+# Watch → like (row-level) mirrors analysis figure pipeline
+
+Same filters as `prep_watch_like` in `2_analysis.qmd` (finite watch + like; article strategies).
+
+```{r}
+#| label: tests-watch-like-smooth
+#| fig-width: 8
+#| fig-height: 8
+
+df_wl <- df |> filter(is.finite(watch), is.finite(like))
+
+means_wl <- df_wl |>
+  summarise(
+    watch = mean(watch),
+    like = mean(like),
+    n = n(),
+    .by = c(horizon, strategy, treatment)
+  )
+
+means_wl |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "Panel means for watch → like (same sample as analysis figure).")
+
+ggplot(df_wl, aes(x = watch, y = like, color = treatment)) +
+  geom_smooth(se = TRUE, linewidth = 0.8) +
+  geom_point(
+    data = means_wl,
+    aes(fill = treatment),
+    shape = 21,
+    size = 2.6,
+    stroke = 0.6
+  ) +
+  scale_color_manual(values = treat_cols) +
+  scale_fill_manual(values = treat_cols) +
+  facet_grid(rows = vars(strategy), cols = vars(horizon)) +
+  labs(
+    title = "Diagnostic: watch → like (row-level smooth + mean dots)",
+    x = "Watch time (share of duration)",
+    y = "Liking (0/1)",
+    color = NULL,
+    fill = NULL
+  ) +
+  theme_bw(base_size = 11) +
+  theme(legend.position = "bottom")
+```
+
+# Optional: wave 10, watch > 0.1 — binned means and lm
+
+```{r}
+#| label: tests-w10-high-watch
+#| fig-width: 8
+#| fig-height: 4.5
+
+df_w10_hi <- df |>
+  filter(
+    horizon == "Long-term (wave 10)",
+    is.finite(watch),
+    is.finite(like),
+    watch > 0.1
+  )
+
+cat(
+  "Wave 10 rows with watch > 0.1 and finite like: ",
+  nrow(df_w10_hi),
+  " (unique IDs: ", n_distinct(df_w10_hi$ID), ")\n",
+  sep = ""
+)
+
+if (nrow(df_w10_hi) >= 20) {
+  binned <- df_w10_hi |>
+    mutate(bin = cut(watch, breaks = seq(0.1, 1, by = 0.1), include.lowest = TRUE)) |>
+    summarise(
+      mean_like = mean(like),
+      mean_watch = mean(watch),
+      n = n(),
+      .by = c(treatment, bin)
+    )
+
+  print(
+    ggplot(binned, aes(x = mean_watch, y = mean_like, color = treatment, size = n)) +
+      geom_point() +
+      geom_line(aes(group = treatment), linewidth = 0.6) +
+      scale_color_manual(values = treat_cols) +
+      labs(
+        title = "Wave 10: binned mean like vs watch (watch > 0.1)",
+        x = "Bin mean watch",
+        y = "Bin mean like",
+        color = NULL,
+        size = "n"
+      ) +
+      theme_bw(base_size = 11) +
+      theme(legend.position = "bottom")
+  )
+
+  fit <- lm(like ~ watch * treatment, data = df_w10_hi)
+  print(summary(fit))
+} else {
+  cat("Too few wave-10 rows with watch > 0.1 for binned / lm diagnostics.\n")
+}
+```
+
+# Person-level mean watch: wave 9 vs wave 10
+
+Unit = **respondent** (`ID`). x = person mean `watch_percentage_` in wave 9; y = person mean in wave 10; color / facets = treatment. Only IDs present in both prepared waves.
+
+```{r}
+#| label: tests-person-watch-w9-w10
+#| fig-width: 8
+#| fig-height: 5.5
+
+person_watch <- function(dat) {
+  dat |>
+    transmute(
+      ID = as.character(ID),
+      treatment = factor(
+        ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+        levels = c("Control", "Treatment")
+      ),
+      watch = as.numeric(watch_percentage_)
+    ) |>
+    summarise(
+      n_videos = n(),
+      n_finite = sum(is.finite(watch)),
+      # all-NA → NA_real_ (avoid NaN from mean(..., na.rm = TRUE))
+      mean_watch = {
+        w <- watch[is.finite(watch)]
+        if (length(w) > 0) mean(w) else NA_real_
+      },
+      .by = c(ID, treatment)
+    )
+}
+
+pw9  <- person_watch(wave_9)  |>
+  rename(mean_watch_w9 = mean_watch, n_videos_w9 = n_videos, n_finite_w9 = n_finite)
+pw10 <- person_watch(wave_10) |>
+  rename(mean_watch_w10 = mean_watch, n_videos_w10 = n_videos, n_finite_w10 = n_finite)
+
+pw_all <- inner_join(pw9, pw10, by = c("ID", "treatment"))
+# Scatter / cor use IDs with at least one finite watch in each wave
+pw <- pw_all |>
+  filter(is.finite(mean_watch_w9), is.finite(mean_watch_w10))
+
+sum_pw <- pw_all |>
+  summarise(
+    n_id_both_waves = n(),
+    n_id_finite_both = sum(is.finite(mean_watch_w9) & is.finite(mean_watch_w10)),
+    n_id_allNA_w10 = sum(is.finite(mean_watch_w9) & !is.finite(mean_watch_w10)),
+    mean_w9 = mean(mean_watch_w9, na.rm = TRUE),
+    mean_w10 = mean(mean_watch_w10, na.rm = TRUE),
+    cor_w9_w10 = cor(mean_watch_w9, mean_watch_w10, use = "complete.obs"),
+    share_w10_near_w9 = mean(
+      abs(mean_watch_w9 - mean_watch_w10) < 0.01,
+      na.rm = TRUE
+    ),
+    .by = treatment
+  )
+
+sum_pw |>
+  mutate(across(where(is.numeric), ~ round(.x, 4))) |>
+  kable(caption = "Person-level mean watch by treatment (IDs in both waves). Cor/means use finite person-means only.")
+
+cat(
+  "\nPooled (finite person-means both waves): n_id = ", nrow(pw),
+  " of ", nrow(pw_all), " overlapping IDs",
+  "; mean w9 = ", round(mean(pw$mean_watch_w9), 4),
+  "; mean w10 = ", round(mean(pw$mean_watch_w10), 4),
+  "; cor = ", round(cor(pw$mean_watch_w9, pw$mean_watch_w10), 4),
+  "\n",
+  sep = ""
+)
+
+ggplot(pw, aes(x = mean_watch_w9, y = mean_watch_w10, color = treatment)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.35, size = 1.2) +
+  scale_color_manual(values = treat_cols) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
+  labs(
+    title = "Person-level mean watch: wave 9 vs wave 10",
+    subtitle = "IDs with ≥1 finite watch in each wave; dashed = 45°",
+    x = "Mean watch (wave 9)",
+    y = "Mean watch (wave 10)",
+    color = NULL
+  ) +
+  theme_bw(base_size = 12) +
+  theme(legend.position = "bottom")
+```
+
+```{r}
+#| label: tests-person-watch-w9-w10-facets
+#| fig-width: 8
+#| fig-height: 4.5
+
+ggplot(pw, aes(x = mean_watch_w9, y = mean_watch_w10, color = treatment)) +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "grey50") +
+  geom_point(alpha = 0.4, size = 1.2) +
+  scale_color_manual(values = treat_cols) +
+  facet_wrap(~treatment) +
+  coord_equal(xlim = c(0, 1), ylim = c(0, 1)) +
+  labs(
+    title = "Person-level mean watch w9 vs w10 (by treatment)",
+    x = "Mean watch (wave 9)",
+    y = "Mean watch (wave 10)",
+    color = NULL
+  ) +
+  theme_bw(base_size = 12) +
+  theme(legend.position = "none")
+```
+
+# Notes for figure verification
+
+- **Columns:** short-term uses `data/wave_9.rds`; long-term uses `data/wave_10.rds`. Both expose `watch_percentage_` and `videoLikep1r` (same names).
+- **Scale:** `watch_percentage_` ∈ [0, 1] = `watchtime_video_ / duration_video_` (identity in prepared data).
+- **NA handling in figures:** `is.finite(watch)` drops NAs; no NA→0.
+- **Near-zero long-term mean watch:** present in source Stata after the same `SwitchedToRandom == 1` and valid-duration filters as prep — not introduced by the ggplot pipeline. High skip / high share of exact zeros among non-missing watch in wave 10.
+- **Not a wave-9→wave-10 join bug:** person-level cor(w9, w10) mean watch is near zero; levels do not match (see scatter above).
