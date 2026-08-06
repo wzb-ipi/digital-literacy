@@ -28,8 +28,10 @@ pacman::p_load(tidyverse, haven, knitr)
 ```{r}
 #| label: data-paths-and-labels
 
-# This file requires access to full data
-data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
+# This file requires access to full data.
+# Paths are relative to digital-literacy/ (one level below TikTok/, sibling of
+# "Covid Vaccine Allocation" under 1_Projects/). Old ../../1_Projects/... did not resolve.
+data_path <- "../../Covid Vaccine Allocation/4_data/"
 
 # Large video files
 df_09v <- read_dta(
@@ -42,7 +44,7 @@ df_10v <- read_dta(
 
 # Wave 9 and 10 combined data
 df_w10 <- 
-  read_dta("../../1_Projects/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
+  read_dta(paste0(data_path, "wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta")) 
 
 
 # Edit figure labels here
