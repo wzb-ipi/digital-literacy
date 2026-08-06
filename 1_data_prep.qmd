@@ -155,15 +155,17 @@ recode_yes_no <- function(x) {
   )
 }
 
-```
-
-
-```{r}
 # helper: make 1/0/NA bins from party codes
 code_party_bin <- function(x, codes) {
   x <- as.numeric(x)
   ifelse(is.na(x), NA_integer_, as.integer(x %in% codes))
 }
+
+
+```
+
+
+```{r}
 
 
 df_w10 <- df_w10 %>%
