@@ -477,25 +477,26 @@ safe_ggsave_pdf <- function(plot, path, device, width = NA, height = NA,
       stop("temp PDF missing after ggsave", call. = FALSE)
     }
     if (file.exists(path)) {
-      # Prefer overwrite copy (keeps path if replace fails mid-way).
-      copied <- isTRUE(file.copy(tmp, path, overwrite = TRUE))
-      if (!copied) {
-        # Locked destination: rename aside, then move temp into place.
-        if (file.exists(bak)) unlink(bak, force = TRUE)
-        if (!file.rename(path, bak)) {
-          stop("could not rename locked PDF aside", call. = FALSE)
+      # Prefer rename-aside then move: Dropbox / PDF viewers often block
+      # overwrite (file.copy / CreateFile) while still allowing rename.
+      if (file.exists(bak)) unlink(bak, force = TRUE)
+      if (!isTRUE(file.rename(path, bak))) {
+        # Fall back to overwrite copy if rename-aside fails
+        copied <- isTRUE(file.copy(tmp, path, overwrite = TRUE))
+        if (!copied) {
+          stop("could not rename PDF aside or overwrite it", call. = FALSE)
         }
-        if (!file.rename(tmp, path)) {
-          # Restore prior PDF if move failed
-          file.rename(bak, path)
-          stop("could not move temp PDF into place after rename-aside", call. = FALSE)
-        }
-        unlink(bak, force = TRUE)
-      } else {
         unlink(tmp, force = TRUE)
+        return(invisible(TRUE))
       }
-    } else if (!file.rename(tmp, path)) {
-      if (!file.copy(tmp, path, overwrite = TRUE)) {
+      if (!isTRUE(file.rename(tmp, path))) {
+        # Restore prior PDF if move failed
+        file.rename(bak, path)
+        stop("could not move temp PDF into place after rename-aside", call. = FALSE)
+      }
+      unlink(bak, force = TRUE)
+    } else if (!isTRUE(file.rename(tmp, path))) {
+      if (!isTRUE(file.copy(tmp, path, overwrite = TRUE))) {
         stop("file.rename and file.copy both failed for PDF", call. = FALSE)
       }
       unlink(tmp, force = TRUE)
@@ -1989,44 +1990,43 @@ texreg::htmlreg(
 )
 ```
 
-# Exploratory: Watch / bookmark vs liking (row-level; type × All/AfD)
+# Exploratory: Watch / bookmark vs liking / reporting (row-level; type × short/long)
 
-**Descriptive fits** (not causal). Unit = **video–respondent row**. Sample = short-term engagement `wave_9`, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—same span as pooled engagement ATEs (`f_I`). Facets: **rows** = video type; **cols** = all videos | AfD-sender videos only (`party == "AfD"`). Within each panel: two treatment-colored fits (no dense row points) plus two summary dots at (mean x, mean liking) by arm. **(1)** Watch → like: `geom_smooth()`; x = `watch_percentage_`. **(2)** Bookmark → like companion: linear `geom_smooth(method = "lm")` (both binary); x = `videoBookmarkp1r`. Stems: `fig_watch_like_all_afd`, `fig_bookmark_like_all_afd`. Replaces retired `fig_watch_like_by_type_treatment` / `_afd` and older `fig_avg_watch_like_by_treatment`.
+**Descriptive fits** (not causal). Unit = **video–respondent row**. Samples = short-term (`wave_9`) and long-term (`wave_10`) engagement, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—same span as pooled engagement ATEs (`f_I`). Facets: **rows** = video type; **cols** = Short-term | Long-term (no AfD split). Within each panel: treatment-colored fits (no dense row points) plus summary dots at (mean x, mean y) by arm. **(1)** Watch → like: `geom_smooth()`; x = `watch_percentage_`; y = `videoLikep1r`. **(2)** Watch → report: same structure; y = `videoCommentTickedp1r`. **(3)** Bookmark → like: conditional liking shares $P(\text{like}\mid\text{bookmark}\in\{0,1\})$ with cluster-robust 95\% CIs by `ID` (points + error bars + thin connector by treatment), plus darker mean dots at $(\bar b, \bar \ell)$; slight $x$ dodge on the conditional series only; x = `videoBookmarkp1r`. Stems: `fig_watch_like_short_long`, `fig_watch_report_short_long`, `fig_bookmark_like_short_long`. Replaces retired `fig_watch_like_all_afd`, `fig_watch_report_all_afd`, `fig_bookmark_like_all_afd`, `fig_bookmark_like_all_afd_longterm`, and earlier type×treatment / person-average versions.
 
 ```{r}
-#| label: appendix-watch-like-all-afd
+#| label: appendix-watch-like-short-long
 #| fig-width: 8
 #| fig-height: 9
 
 treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
 treat_cols_dark <- c(Control = "#2B4C6F", Treatment = "#A33A39")
-panel_levels <- c("All videos", "AfD videos")
+horizon_levels <- c("Short-term", "Long-term")
 
-df_watch_like_base <- datasets$wave_9 |>
-  filter(strategy_2 %in% strategy_order_article) |>
-  transmute(
-    ID = as.character(ID),
-    strategy = factor(as.character(strategy_2), levels = strategy_order_article),
-    treatment = factor(
-      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
-      levels = c("Control", "Treatment")
-    ),
-    party = party,
-    watch = as.numeric(watch_percentage_),
-    like = as.numeric(videoLikep1r)
-  ) |>
-  filter(is.finite(watch), is.finite(like), !is.na(strategy), !is.na(treatment))
+prep_watch_like <- function(dat, horizon) {
+  dat |>
+    filter(strategy_2 %in% strategy_order_article) |>
+    transmute(
+      ID = as.character(ID),
+      strategy = factor(as.character(strategy_2), levels = strategy_order_article),
+      treatment = factor(
+        ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+        levels = c("Control", "Treatment")
+      ),
+      watch = as.numeric(watch_percentage_),
+      like = as.numeric(videoLikep1r),
+      horizon = factor(horizon, levels = horizon_levels)
+    ) |>
+    filter(is.finite(watch), is.finite(like), !is.na(strategy), !is.na(treatment))
+}
 
 df_watch_like_row <- bind_rows(
-  df_watch_like_base |> mutate(panel = "All videos"),
-  df_watch_like_base |>
-    filter(party == "AfD") |>
-    mutate(panel = "AfD videos")
-) |>
-  mutate(panel = factor(panel, levels = panel_levels))
+  prep_watch_like(datasets$wave_9, "Short-term"),
+  prep_watch_like(datasets$wave_10, "Long-term")
+)
 
 df_watch_like_means <- df_watch_like_row |>
-  group_by(strategy, panel, treatment) |>
+  group_by(strategy, horizon, treatment) |>
   summarise(
     watch = mean(watch, na.rm = TRUE),
     like = mean(like, na.rm = TRUE),
@@ -2035,24 +2035,19 @@ df_watch_like_means <- df_watch_like_row |>
   )
 
 cat(
-  "Watch time vs liking (row-level; wave_9; All | AfD panels)\n",
-  "  N rows (All): ", sum(df_watch_like_row$panel == "All videos"),
-  "  (unique IDs: ", dplyr::n_distinct(df_watch_like_base$ID), ")\n",
-  "  N rows (AfD videos): ", sum(df_watch_like_row$panel == "AfD videos"), "\n",
-  "  Control (All): ", sum(df_watch_like_base$treatment == "Control"),
-  "; Treatment (All): ", sum(df_watch_like_base$treatment == "Treatment"), "\n",
-  "  By type (All): ",
-  paste(
-    gsub("\n", " ", levels(df_watch_like_base$strategy), fixed = TRUE),
-    as.integer(table(df_watch_like_base$strategy)[levels(df_watch_like_base$strategy)]),
-    sep = "=",
-    collapse = "; "
-  ),
-  "\n",
+  "Watch time vs liking (row-level; short | long; no AfD panels)\n",
+  "  N rows (short): ", sum(df_watch_like_row$horizon == "Short-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Short-term"]),
+  ")\n",
+  "  N rows (long): ", sum(df_watch_like_row$horizon == "Long-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Long-term"]),
+  ")\n",
   sep = ""
 )
 
-fig_watch_like_all_afd <- ggplot(
+fig_watch_like_short_long <- ggplot(
   df_watch_like_row,
   aes(x = watch, y = like, color = treatment)
 ) +
@@ -2067,10 +2062,10 @@ fig_watch_like_all_afd <- ggplot(
   ) +
   scale_color_manual(values = treat_cols, name = NULL) +
   scale_fill_manual(values = treat_cols_dark, name = NULL) +
-  facet_grid(rows = vars(strategy), cols = vars(panel)) +
+  facet_grid(rows = vars(strategy), cols = vars(horizon)) +
   labs(
     title = "Watch time vs liking",
-    subtitle = "Video–respondent rows; wave 9; curves by treatment; dots = panel means",
+    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); curves by treatment; dots = panel means",
     x = "Watch time (share of video duration)",
     y = "Liking (0/1)"
   ) +
@@ -2082,71 +2077,73 @@ fig_watch_like_all_afd <- ggplot(
   )
 
 write_fig(
-  stem = "fig_watch_like_all_afd",
+  stem = "fig_watch_like_short_long",
   estimates = list(rows = df_watch_like_row, means = df_watch_like_means),
-  plot = fig_watch_like_all_afd,
+  plot = fig_watch_like_short_long,
   width = 8,
   height = 9
 )
 ```
 
-**Companion:** same facet / treatment-color / mean-dot structure; **x** = bookmarking (`videoBookmarkp1r`, 0/1), **y** = liking; linear fit (`method = "lm"`) because both axes are binary.
+**Companion:** same type × short/long facet / treatment-color / mean-dot / `geom_smooth()` structure; **x** = watch time; **y** = reporting (`videoCommentTickedp1r`, 0/1).
 
 ```{r}
-#| label: appendix-bookmark-like-all-afd
+#| label: appendix-watch-report-short-long
 #| fig-width: 8
 #| fig-height: 9
 
-df_bookmark_like_base <- datasets$wave_9 |>
-  filter(strategy_2 %in% strategy_order_article) |>
-  transmute(
-    ID = as.character(ID),
-    strategy = factor(as.character(strategy_2), levels = strategy_order_article),
-    treatment = factor(
-      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
-      levels = c("Control", "Treatment")
-    ),
-    party = party,
-    bookmark = as.numeric(videoBookmarkp1r),
-    like = as.numeric(videoLikep1r)
-  ) |>
-  filter(is.finite(bookmark), is.finite(like), !is.na(strategy), !is.na(treatment))
+prep_watch_report <- function(dat, horizon) {
+  dat |>
+    filter(strategy_2 %in% strategy_order_article) |>
+    transmute(
+      ID = as.character(ID),
+      strategy = factor(as.character(strategy_2), levels = strategy_order_article),
+      treatment = factor(
+        ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+        levels = c("Control", "Treatment")
+      ),
+      watch = as.numeric(watch_percentage_),
+      report = as.numeric(videoCommentTickedp1r),
+      horizon = factor(horizon, levels = horizon_levels)
+    ) |>
+    filter(is.finite(watch), is.finite(report), !is.na(strategy), !is.na(treatment))
+}
 
-df_bookmark_like_row <- bind_rows(
-  df_bookmark_like_base |> mutate(panel = "All videos"),
-  df_bookmark_like_base |>
-    filter(party == "AfD") |>
-    mutate(panel = "AfD videos")
-) |>
-  mutate(panel = factor(panel, levels = panel_levels))
+df_watch_report_row <- bind_rows(
+  prep_watch_report(datasets$wave_9, "Short-term"),
+  prep_watch_report(datasets$wave_10, "Long-term")
+)
 
-df_bookmark_like_means <- df_bookmark_like_row |>
-  group_by(strategy, panel, treatment) |>
+df_watch_report_means <- df_watch_report_row |>
+  group_by(strategy, horizon, treatment) |>
   summarise(
-    bookmark = mean(bookmark, na.rm = TRUE),
-    like = mean(like, na.rm = TRUE),
+    watch = mean(watch, na.rm = TRUE),
+    report = mean(report, na.rm = TRUE),
     n = n(),
     .groups = "drop"
   )
 
 cat(
-  "Bookmarking vs liking (row-level; wave_9; All | AfD panels; lm)\n",
-  "  N rows (All): ", sum(df_bookmark_like_row$panel == "All videos"),
-  "  (unique IDs: ", dplyr::n_distinct(df_bookmark_like_base$ID), ")\n",
-  "  N rows (AfD videos): ", sum(df_bookmark_like_row$panel == "AfD videos"), "\n",
-  "  Control (All): ", sum(df_bookmark_like_base$treatment == "Control"),
-  "; Treatment (All): ", sum(df_bookmark_like_base$treatment == "Treatment"), "\n",
+  "Watch time vs reporting (row-level; short | long; no AfD panels)\n",
+  "  N rows (short): ", sum(df_watch_report_row$horizon == "Short-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Short-term"]),
+  ")\n",
+  "  N rows (long): ", sum(df_watch_report_row$horizon == "Long-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Long-term"]),
+  ")\n",
   sep = ""
 )
 
-fig_bookmark_like_all_afd <- ggplot(
-  df_bookmark_like_row,
-  aes(x = bookmark, y = like, color = treatment)
+fig_watch_report_short_long <- ggplot(
+  df_watch_report_row,
+  aes(x = watch, y = report, color = treatment)
 ) +
-  geom_smooth(method = "lm", se = TRUE, linewidth = 0.85) +
+  geom_smooth(se = TRUE, linewidth = 0.85) +
   geom_point(
-    data = df_bookmark_like_means,
-    aes(x = bookmark, y = like, color = treatment, fill = treatment),
+    data = df_watch_report_means,
+    aes(x = watch, y = report, color = treatment, fill = treatment),
     shape = 21,
     size = 2.8,
     stroke = 0.7,
@@ -2154,12 +2151,12 @@ fig_bookmark_like_all_afd <- ggplot(
   ) +
   scale_color_manual(values = treat_cols, name = NULL) +
   scale_fill_manual(values = treat_cols_dark, name = NULL) +
-  facet_grid(rows = vars(strategy), cols = vars(panel)) +
+  facet_grid(rows = vars(strategy), cols = vars(horizon)) +
   labs(
-    title = "Bookmarking vs liking",
-    subtitle = "Video–respondent rows; wave 9; linear fits by treatment; dots = panel means",
-    x = "Bookmarking (0/1)",
-    y = "Liking (0/1)"
+    title = "Watch time vs reporting",
+    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); curves by treatment; dots = panel means",
+    x = "Watch time (share of video duration)",
+    y = "Reporting (0/1)"
   ) +
   theme_bw(base_size = 12) +
   theme(
@@ -2169,9 +2166,174 @@ fig_bookmark_like_all_afd <- ggplot(
   )
 
 write_fig(
-  stem = "fig_bookmark_like_all_afd",
-  estimates = list(rows = df_bookmark_like_row, means = df_bookmark_like_means),
-  plot = fig_bookmark_like_all_afd,
+  stem = "fig_watch_report_short_long",
+  estimates = list(rows = df_watch_report_row, means = df_watch_report_means),
+  plot = fig_watch_report_short_long,
+  width = 8,
+  height = 9
+)
+```
+
+**Companion:** same type × short/long facet and treatment colors; **x** = bookmarking (`videoBookmarkp1r`, 0/1), **y** = liking. For each panel × treatment × bookmark ∈ {0,1}, plot $P(\text{like}\mid\text{bookmark})$ from `estimatr::lm_robust(like ~ 1, clusters = ID)` with 95\% CIs; thin line joins bookmark 0→1 within arm (slight $x$ dodge by treatment). Darker mean dots at $(\bar b, \bar \ell)$ per arm, with a thin Control–Treatment segment. No hollow rings / cell-share circles. Short- and long-term are columns of one figure (no separate long-term-only export).
+
+```{r}
+#| label: appendix-bookmark-like-short-long
+#| fig-width: 8
+#| fig-height: 9
+
+prep_bookmark_like <- function(dat, horizon) {
+  dat |>
+    filter(strategy_2 %in% strategy_order_article) |>
+    transmute(
+      ID = as.character(ID),
+      strategy = factor(as.character(strategy_2), levels = strategy_order_article),
+      treatment = factor(
+        ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+        levels = c("Control", "Treatment")
+      ),
+      bookmark = as.numeric(videoBookmarkp1r),
+      like = as.numeric(videoLikep1r),
+      horizon = factor(horizon, levels = horizon_levels)
+    ) |>
+    filter(is.finite(bookmark), is.finite(like), !is.na(strategy), !is.na(treatment))
+}
+
+df_bookmark_like_row <- bind_rows(
+  prep_bookmark_like(datasets$wave_9, "Short-term"),
+  prep_bookmark_like(datasets$wave_10, "Long-term")
+)
+
+# 2D means: (mean bookmark, mean like) by type × horizon × treatment
+df_bookmark_like_means <- df_bookmark_like_row |>
+  group_by(strategy, horizon, treatment) |>
+  summarise(
+    bookmark = mean(bookmark, na.rm = TRUE),
+    like = mean(like, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+df_bookmark_like_seg <- df_bookmark_like_means |>
+  select(strategy, horizon, treatment, bookmark, like) |>
+  tidyr::pivot_wider(
+    names_from = treatment,
+    values_from = c(bookmark, like)
+  ) |>
+  transmute(
+    strategy,
+    horizon,
+    x = bookmark_Control,
+    y = like_Control,
+    xend = bookmark_Treatment,
+    yend = like_Treatment
+  )
+
+# Conditional P(like | bookmark) with cluster-robust SEs by ID
+bookmark_x_dodge <- 0.05
+df_bookmark_like_cond <- df_bookmark_like_row |>
+  mutate(bookmark = as.integer(round(bookmark))) |>
+  group_by(strategy, horizon, treatment, bookmark) |>
+  group_modify(~ {
+    n_id <- dplyr::n_distinct(.x$ID)
+    if (nrow(.x) < 2L || n_id < 2L) {
+      tibble::tibble(
+        estimate = mean(.x$like, na.rm = TRUE),
+        std.error = NA_real_,
+        conf.low = NA_real_,
+        conf.high = NA_real_,
+        n = nrow(.x),
+        n_id = n_id
+      )
+    } else {
+      m <- estimatr::lm_robust(like ~ 1, data = .x, clusters = ID)
+      broom::tidy(m) |>
+        dplyr::filter(term == "(Intercept)") |>
+        dplyr::transmute(
+          estimate,
+          std.error,
+          conf.low,
+          conf.high,
+          n = nrow(.x),
+          n_id = n_id
+        )
+    }
+  }) |>
+  ungroup() |>
+  mutate(
+    x_plot = bookmark + ifelse(treatment == "Treatment", bookmark_x_dodge, -bookmark_x_dodge)
+  )
+
+cat(
+  "Bookmarking vs liking (row-level; short | long; no AfD panels;\n",
+  "  P(like|bookmark) with lm_robust clusters=ID + 2D means)\n",
+  "  N rows (short): ", sum(df_bookmark_like_row$horizon == "Short-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Short-term"]),
+  ")\n",
+  "  N rows (long): ", sum(df_bookmark_like_row$horizon == "Long-term"),
+  "  (unique IDs: ",
+  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Long-term"]),
+  ")\n",
+  sep = ""
+)
+
+fig_bookmark_like_short_long <- ggplot() +
+  geom_segment(
+    data = df_bookmark_like_seg,
+    aes(x = x, y = y, xend = xend, yend = yend),
+    color = "grey35",
+    linewidth = 0.45,
+    inherit.aes = FALSE
+  ) +
+  geom_line(
+    data = df_bookmark_like_cond,
+    aes(x = x_plot, y = estimate, color = treatment, group = treatment),
+    linewidth = 0.55
+  ) +
+  geom_errorbar(
+    data = df_bookmark_like_cond,
+    aes(x = x_plot, ymin = conf.low, ymax = conf.high, color = treatment),
+    width = 0.04,
+    linewidth = 0.55
+  ) +
+  geom_point(
+    data = df_bookmark_like_cond,
+    aes(x = x_plot, y = estimate, color = treatment),
+    size = 2.2
+  ) +
+  geom_point(
+    data = df_bookmark_like_means,
+    aes(x = bookmark, y = like, color = treatment, fill = treatment),
+    shape = 21,
+    size = 2.8,
+    stroke = 0.7
+  ) +
+  scale_color_manual(values = treat_cols, name = NULL) +
+  scale_fill_manual(values = treat_cols_dark, name = NULL) +
+  scale_x_continuous(breaks = c(0, 1), limits = c(-0.12, 1.12)) +
+  scale_y_continuous(limits = c(0, 1), breaks = seq(0, 1, by = 0.25)) +
+  facet_grid(rows = vars(strategy), cols = vars(horizon)) +
+  labs(
+    title = "Bookmarking vs liking",
+    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); P(like|bookmark) with cluster-ID 95% CIs; dots = panel means",
+    x = "Bookmarking (0/1)",
+    y = "Liking (share / 0–1)"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", color = "grey80"),
+    legend.position = "bottom"
+  )
+
+write_fig(
+  stem = "fig_bookmark_like_short_long",
+  estimates = list(
+    rows = df_bookmark_like_row,
+    means = df_bookmark_like_means,
+    cond = df_bookmark_like_cond
+  ),
+  plot = fig_bookmark_like_short_long,
   width = 8,
   height = 9
 )
