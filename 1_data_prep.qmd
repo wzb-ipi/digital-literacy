@@ -42,7 +42,7 @@ df_10v <- read_dta(
 
 # Wave 9 and 10 combined data
 df_w10 <- 
-  read_dta("../../1_Projects/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
+  read_dta("../../../../HU/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
 
 
 # Edit figure labels here
@@ -146,6 +146,15 @@ clean_ptv <- function(x, demean = FALSE) {
   if (demean) x <- demean(x)
   x / 10
 }
+
+recode_yes_no <- function(x) {
+  case_when(
+    as.numeric(x) == 1 ~ 1L,
+    as.numeric(x) == 2 ~ 0L,
+    TRUE ~ NA_integer_
+  )
+}
+
 ```
 
 
@@ -394,6 +403,7 @@ df_w10 <- df_w10 %>%
   ) |>
   dplyr::select(-urban_num) |>
   dplyr::select(-starts_with("party_poss"))
+
 
 
 df_w10 <- df_w10 %>%
