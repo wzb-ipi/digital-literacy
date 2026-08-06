@@ -482,12 +482,23 @@ df_w10 <- df_w10 %>%
   ) %>%
   # TikTok splits and attrition indicator, then clean up names
   mutate(
-  uses_facebook  = recode_yes_no(Video_UserFacebook),
-  uses_tiktok    = recode_yes_no(Video_UserTikTok),
-  uses_snapchat  = recode_yes_no(Video_UserSnapchat),
-  uses_pinterest = recode_yes_no(Video_UserPinterest),
-  uses_x         = recode_yes_no(Video_UserX_ehem_Twitter),
-  uses_twitch    = recode_yes_no(Video_UserTwitch),
+  Video_UserFacebook = recode_yes_no(Video_UserFacebook),
+  Video_UserTikTok = recode_yes_no(Video_UserTikTok),
+  Video_UserSnapchat = recode_yes_no(Video_UserSnapchat),
+  Video_UserPinterest = recode_yes_no(Video_UserPinterest),
+  Video_UserX_ehem_Twitter = recode_yes_no(Video_UserX_ehem_Twitter),
+  Video_UserTwitch = recode_yes_no(Video_UserTwitch),
+  # Reverse so higher values indicate greater political interest
+  Politikinteresse = case_when(
+    is.na(Politikinteresse) ~ NA_real_,
+    TRUE ~ 5 - as.numeric(Politikinteresse)
+  ),
+  # Binary indicator rather than number of children
+  Eigene_Kinder = case_when(
+    is.na(Eigene_Kinder) ~ NA_integer_,
+    Eigene_Kinder == 0 ~ 0L,
+    Eigene_Kinder > 0 ~ 1L
+  ),
     # TikTok_User (1=Ja, 2=Nein, 3=kenne TikTok nicht)
     tiktok_user_yes = case_when(
       TikTok_User == 1L ~ 1L,
