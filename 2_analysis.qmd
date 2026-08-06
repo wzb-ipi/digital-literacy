@@ -1799,62 +1799,63 @@ texreg::htmlreg(
 )
 ```
 
-# Exploratory: Average watch time vs liking (by treatment)
+# Exploratory: Watch time vs liking (row-level; by type × treatment)
 
-**Companion descriptive scatter** (same sample definition as the causal forests below). Unit = **person × sending-party** cell on emotionally manipulative political videos (`strategy_2 == strategies[1]`, `wave_9`): mean watch time (`watch_percentage_`) and mean liking (`videoLikep1r`) within each cell, faceted by treatment vs control. Matches the forest sample aggregation so raw outcome co-movement can be compared with CATE co-movement. Cell count is larger than the forest fit sample because forests also require complete covariates in $X$.
+**Descriptive smooths** (not causal). Unit = **video–respondent row** (not person or person×party aggregates). Sample = short-term engagement sample `wave_9`, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—the same content-type span as the pooled engagement ATEs (`f_I`), with finite watch time (`watch_percentage_`) and liking (`videoLikep1r`). **x** = watch time; **y** = binary liking. Curves are `geom_smooth()` only (no points). Facets: **rows** = video type; **cols** = treatment vs control. Companion figure colors by AfD vs non-AfD **sending party** (`party == "AfD"`, same definition as AfD-video analyses); entertainment rows have no party sender and fall in non-AfD. Replaces the retired person-aggregated scatter `fig_avg_watch_like_by_treatment`.
 
 ```{r}
-#| label: appendix-avg-watch-like-by-treatment
+#| label: appendix-watch-like-by-type-treatment
 #| fig-width: 8
-#| fig-height: 4.5
+#| fig-height: 9
 
-party_order_wl <- names(party_codes)
-
-df_avg_watch_like <- datasets$wave_9 |>
-  filter(
-    strategy_2 == strategies[1],
-    party %in% party_order_wl
-  ) |>
+df_watch_like_row <- datasets$wave_9 |>
+  filter(strategy_2 %in% strategy_order_article) |>
   transmute(
     ID = as.character(ID),
-    party = party,
+    strategy = factor(as.character(strategy_2), levels = strategy_order_article),
     treatment = factor(
       ifelse(workshop_Treatment == 1, "Treatment", "Control"),
       levels = c("Control", "Treatment")
     ),
+    afd_video = factor(
+      ifelse(party == "AfD", "AfD video", "Non-AfD video"),
+      levels = c("Non-AfD video", "AfD video")
+    ),
     watch = as.numeric(watch_percentage_),
     like = as.numeric(videoLikep1r)
   ) |>
-  group_by(ID, party, treatment) |>
-  summarise(
-    avg_watch = mean(watch, na.rm = TRUE),
-    avg_like = mean(like, na.rm = TRUE),
-    n_videos = n(),
-    .groups = "drop"
-  ) |>
-  filter(is.finite(avg_watch), is.finite(avg_like))
+  filter(is.finite(watch), is.finite(like), !is.na(strategy), !is.na(treatment))
 
 cat(
-  "Average watch time vs liking (person×party; emotional-political wave_9)\n",
-  "  N cells: ", nrow(df_avg_watch_like),
-  "  (unique IDs: ", dplyr::n_distinct(df_avg_watch_like$ID), ")\n",
-  "  Control: ", sum(df_avg_watch_like$treatment == "Control"),
-  "; Treatment: ", sum(df_avg_watch_like$treatment == "Treatment"), "\n",
+  "Watch time vs liking (row-level; wave_9; all content types)\n",
+  "  N rows: ", nrow(df_watch_like_row),
+  "  (unique IDs: ", dplyr::n_distinct(df_watch_like_row$ID), ")\n",
+  "  Control: ", sum(df_watch_like_row$treatment == "Control"),
+  "; Treatment: ", sum(df_watch_like_row$treatment == "Treatment"), "\n",
+  "  By type: ",
+  paste(
+    gsub("\n", " ", levels(df_watch_like_row$strategy), fixed = TRUE),
+    as.integer(table(df_watch_like_row$strategy)[levels(df_watch_like_row$strategy)]),
+    sep = "=",
+    collapse = "; "
+  ),
+  "\n",
+  "  AfD video rows: ", sum(df_watch_like_row$afd_video == "AfD video"),
+  "; Non-AfD: ", sum(df_watch_like_row$afd_video == "Non-AfD video"), "\n",
   sep = ""
 )
 
-fig_avg_watch_like_by_treatment <- ggplot(
-  df_avg_watch_like,
-  aes(x = avg_watch, y = avg_like)
+fig_watch_like_by_type_treatment <- ggplot(
+  df_watch_like_row,
+  aes(x = watch, y = like)
 ) +
-  geom_point(alpha = 0.12, size = 0.7, color = "grey25") +
-  geom_smooth(method = "loess", se = TRUE, linewidth = 0.8, color = "#1b4f72") +
-  facet_wrap(~treatment) +
+  geom_smooth(se = TRUE, linewidth = 0.8, color = "#1b4f72") +
+  facet_grid(rows = vars(strategy), cols = vars(treatment)) +
   labs(
-    title = "Average watch time vs average liking",
-    subtitle = "Person×party means; emotionally manipulative political videos (wave 9)",
-    x = "Average watch time (share of video duration)",
-    y = "Average liking rate"
+    title = "Watch time vs liking",
+    subtitle = "Video–respondent rows; wave 9; facets = content type × treatment",
+    x = "Watch time (share of video duration)",
+    y = "Liking (0/1)"
   ) +
   theme_bw(base_size = 12) +
   theme(
@@ -1863,21 +1864,49 @@ fig_avg_watch_like_by_treatment <- ggplot(
   )
 
 write_fig(
-  stem = "fig_avg_watch_like_by_treatment",
-  estimates = df_avg_watch_like,
-  plot = fig_avg_watch_like_by_treatment,
+  stem = "fig_watch_like_by_type_treatment",
+  estimates = df_watch_like_row,
+  plot = fig_watch_like_by_type_treatment,
   width = 8,
-  height = 4.5
+  height = 9
+)
+
+fig_watch_like_by_type_treatment_afd <- ggplot(
+  df_watch_like_row,
+  aes(x = watch, y = like, color = afd_video)
+) +
+  geom_smooth(se = TRUE, linewidth = 0.8) +
+  facet_grid(rows = vars(strategy), cols = vars(treatment)) +
+  labs(
+    title = "Watch time vs liking by AfD video",
+    subtitle = "Video–respondent rows; wave 9; color = sending party AfD vs non-AfD",
+    x = "Watch time (share of video duration)",
+    y = "Liking (0/1)",
+    color = NULL
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", color = "grey80"),
+    legend.position = "bottom"
+  )
+
+write_fig(
+  stem = "fig_watch_like_by_type_treatment_afd",
+  estimates = df_watch_like_row,
+  plot = fig_watch_like_by_type_treatment_afd,
+  width = 8,
+  height = 9
 )
 ```
 
 # Exploratory: Causal-forest CATE correlations across outcomes
 
-**Exploratory appendix analysis** (not a primary confirmatory claim). Motivating question: *Are those that pay attention also those that change liking and reporting behavior?* We estimate conditional average treatment effects (CATEs) separately for **Watch Time**, **Skip**, **Like**, and **Report** using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes (attention ↔ engagement).
+**Exploratory appendix analysis** (not a primary confirmatory claim). Motivating question: *Are those that pay attention also those that change liking and reporting behavior?* We estimate conditional average treatment effects (CATEs) separately for **Watch Time**, **Skip**, **Like**, **Report**, **Share**, and **Bookmark** using `grf::causal_forest`, then inspect how those CATEs co-vary across outcomes (attention ↔ engagement). The main 4×4 grid still displays **Watch Time / Skip / Like / Report**; Share and Bookmark CATEs are saved and used in companion scatters.
 
-Fitting four causal forests is **slow**. The switch `RUN_FORESTS` in the configuration chunk controls whether forests are refit (`TRUE`) or whether the document reuses saved CATEs from `ests/fig_causal_forest_cate_corr.rds` (`FALSE`, default) and only rebuilds the correlation grid / figure. Set `RUN_FORESTS <- TRUE` once after a code or data change that affects the forests, then return it to `FALSE` for ordinary compiles.
+Fitting six causal forests is **slow**. The switch `RUN_FORESTS` in the configuration chunk controls whether forests are refit (`TRUE`) or whether the document reuses saved CATEs from `ests/fig_causal_forest_cate_corr.rds` (`FALSE`, default) and only rebuilds the correlation grid / figure. Set `RUN_FORESTS <- TRUE` once after a code or data change that affects the forests, then return it to `FALSE` for ordinary compiles.
 
-**Unit of analysis.** Each observation is a **person × sending-party** cell (`ID` × `party`): on emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), outcomes are the mean of the video-level measures over videos from that party shown to that respondent (Watch Time = `watch_percentage_`; Skip = `skipped_video_`; Like / Report = binary engagement indicators). A unique unit id `pp_id` identifies each person–party cell; all OOB $\hat\tau$ predictions are at this level (not person–video). Treatment $W$ is `workshop_Treatment` (constant within respondent). We try `clusters = ID` (person, higher than the unit) so multiple party-cells per person are not treated as independent; if `grf` rejects that, forests are fit **without** clustering rather than coarsening units.
+**Unit of analysis.** Each observation is a **person × sending-party** cell (`ID` × `party`): on emotionally manipulative political videos (`strategy_2 == strategies[1]` / `"political\n(emotional)"`, `wave_9`), outcomes are the mean of the video-level measures over videos from that party shown to that respondent (Watch Time = `watch_percentage_`; Skip = `skipped_video_`; Like / Report / Share / Bookmark = binary engagement indicators). A unique unit id `pp_id` identifies each person–party cell; all OOB $\hat\tau$ predictions are at this level (not person–video). Treatment $W$ is `workshop_Treatment` (constant within respondent). We try `clusters = ID` (person, higher than the unit) so multiple party-cells per person are not treated as independent; if `grf` rejects that, forests are fit **without** clustering rather than coarsening units.
 
 **Covariates $X$.** Respondent-level covariates from `labels_en`, merged from `df_w9_w10` via `ID` / `id_w9`, **plus full sending-party dummies** for the cell's `party` (same coding as `party_codes` / party names). Party must enter $X$ so $\hat\tau(X)$ can differ by sending party (including AfD vs non-AfD). Rows with missing $Y$, $W$, or $X$ are dropped (listwise). Covariates with very high missingness on this sample (notably structurally missing `tiktok_potential_*` for current users, and `berufliche_stellung`) are omitted from $X$ before listwise deletion so the forest sample is not restricted to non-users; omissions are reported in the chunk output when forests are fit.
 
@@ -1890,7 +1919,8 @@ Fitting four causal forests is **slow**. The switch `RUN_FORESTS` in the configu
 
 set.seed(20260804)
 
-# Display / estimation order: Watch Time, Skip, Like, Report (attention + engagement)
+# Fit all six; 4×4 display stays Watch Time / Skip / Like / Report
+cf_outcomes_fit <- c("Watch Time", "Skip", "Like", "Report", "Share", "Bookmark")
 cf_outcomes <- c("Watch Time", "Skip", "Like", "Report")
 cf_est_path <- file.path(est_dir, "fig_causal_forest_cate_corr.rds")
 
@@ -1899,7 +1929,7 @@ if (isTRUE(RUN_FORESTS)) {
   df_cf_vid <- datasets$wave_9 |>
     filter(strategy_2 == strategies[1])
 
-  rename_map <- setNames(unname(v_outcomes[cf_outcomes]), cf_outcomes)
+  rename_map <- setNames(unname(v_outcomes[cf_outcomes_fit]), cf_outcomes_fit)
   party_order_cf_x <- names(party_codes)
 
   df_cf_base <- df_cf_vid |>
@@ -1907,14 +1937,14 @@ if (isTRUE(RUN_FORESTS)) {
       ID = as.character(ID),
       party = party,
       W = as.numeric(workshop_Treatment),
-      across(all_of(unname(v_outcomes[cf_outcomes])))
+      across(all_of(unname(v_outcomes[cf_outcomes_fit])))
     ) |>
     rename(!!!rename_map) |>
     filter(party %in% party_order_cf_x) |>
     group_by(ID, party) |>
     summarise(
       W = first(W),
-      across(all_of(cf_outcomes), \(z) mean(as.numeric(z), na.rm = TRUE)),
+      across(all_of(cf_outcomes_fit), \(z) mean(as.numeric(z), na.rm = TRUE)),
       n_videos = n(),
       .groups = "drop"
     ) |>
@@ -1950,13 +1980,14 @@ if (isTRUE(RUN_FORESTS)) {
   n_before <- nrow(df_cf)
   df_cf_cc <- df_cf |>
     filter(W %in% c(0, 1)) |>
-    drop_na(all_of(c(cf_outcomes, "W", x_use)))
+    drop_na(all_of(c(cf_outcomes_fit, "W", x_use)))
   n_after <- nrow(df_cf_cc)
   n_id_after <- n_distinct(df_cf_cc$ID)
 
   cat(
     "Causal-forest sample (exploratory; RUN_FORESTS = TRUE)\n",
     "  Unit: person × sending party (emotional political, wave_9)\n",
+    "  Outcomes fit: ", paste(cf_outcomes_fit, collapse = ", "), "\n",
     "  ID×party cells before listwise: ", n_before, "\n",
     "  ID×party cells after listwise:  ", n_after,
     "  (unique IDs: ", n_id_after, ")\n",
@@ -1990,10 +2021,10 @@ if (isTRUE(RUN_FORESTS)) {
   cf_clusters_used <- "ID"
   clusters_arg <- clusters_person
 
-  # --- Four causal forests; OOB CATE predictions (fit one-at-a-time) --------
-  cate_mat <- matrix(NA_real_, nrow = nrow(df_cf_cc), ncol = length(cf_outcomes))
-  colnames(cate_mat) <- cf_outcomes
-  for (Y in cf_outcomes) {
+  # --- Causal forests; OOB CATE predictions (fit one-at-a-time) -------------
+  cate_mat_fit <- matrix(NA_real_, nrow = nrow(df_cf_cc), ncol = length(cf_outcomes_fit))
+  colnames(cate_mat_fit) <- cf_outcomes_fit
+  for (Y in cf_outcomes_fit) {
     cat("Fitting causal forest for ", Y, "...\n", sep = "")
     y_vec <- as.numeric(df_cf_cc[[Y]])
     fit <- tryCatch(
@@ -2019,7 +2050,7 @@ if (isTRUE(RUN_FORESTS)) {
         }
       }
     )
-    cate_mat[, Y] <- as.numeric(predict(fit)$predictions)
+    cate_mat_fit[, Y] <- as.numeric(predict(fit)$predictions)
     rm(fit)
   }
   if (identical(cf_clusters_used, "ID")) {
@@ -2030,9 +2061,11 @@ if (isTRUE(RUN_FORESTS)) {
 
   df_cate <- df_cf_cc |>
     select(pp_id, ID, party, W) |>
-    bind_cols(as_tibble(cate_mat))
+    bind_cols(as_tibble(cate_mat_fit))
 
-  cate_cor <- cor(cate_mat, use = "pairwise.complete.obs")
+  cate_cor_fit <- cor(cate_mat_fit, use = "pairwise.complete.obs")
+  cate_mat <- cate_mat_fit[, cf_outcomes, drop = FALSE]
+  cate_cor <- cate_cor_fit[cf_outcomes, cf_outcomes, drop = FALSE]
 
   # Within-ID Like CATE variation (sanity: party in X should yield non-zero range)
   within_like <- df_cate |>
@@ -2054,10 +2087,12 @@ if (isTRUE(RUN_FORESTS)) {
   cf_estimates <- list(
     cate_unit = df_cate,
     cate_cor = cate_cor,
+    cate_cor_fit = cate_cor_fit,
     n_cells = n_after,
     n_ids = n_id_after,
     unit = "person-party",
-    outcomes = cf_outcomes,
+    outcomes = cf_outcomes_fit,
+    outcomes_display = cf_outcomes,
     clusters_used = cf_clusters_used,
     x_used = x_use,
     x_dropped_high_miss = x_high_miss,
@@ -2097,19 +2132,19 @@ if (isTRUE(RUN_FORESTS)) {
     )
   }
   df_cate <- cf_estimates$cate_unit
-  cate_cor <- cf_estimates$cate_cor
-  if (!all(cf_outcomes %in% names(df_cate))) {
+  if (!all(cf_outcomes_fit %in% names(df_cate))) {
     stop(
-      "Saved cate_unit is missing outcome columns (expected: ",
-      paste(cf_outcomes, collapse = ", "), "). ",
+      "Saved cate_unit is missing outcome columns (expected fit set: ",
+      paste(cf_outcomes_fit, collapse = ", "), "). ",
       "Set RUN_FORESTS <- TRUE once to refit and save.",
       call. = FALSE
     )
   }
-  if (!is.null(cf_estimates$outcomes) && !identical(unname(cf_estimates$outcomes), unname(cf_outcomes))) {
+  if (!is.null(cf_estimates$outcomes) &&
+      !all(cf_outcomes_fit %in% cf_estimates$outcomes)) {
     stop(
       "Saved outcomes (", paste(cf_estimates$outcomes, collapse = ", "),
-      ") differ from current cf_outcomes (", paste(cf_outcomes, collapse = ", "),
+      ") missing required fit outcomes (", paste(cf_outcomes_fit, collapse = ", "),
       "). Set RUN_FORESTS <- TRUE once to refit and save.",
       call. = FALSE
     )
@@ -2130,6 +2165,13 @@ if (isTRUE(RUN_FORESTS)) {
     )
   }
   cate_mat <- as.matrix(df_cate[, cf_outcomes, drop = FALSE])
+  if (!is.null(cf_estimates$cate_cor) &&
+      all(cf_outcomes %in% rownames(cf_estimates$cate_cor)) &&
+      all(cf_outcomes %in% colnames(cf_estimates$cate_cor))) {
+    cate_cor <- cf_estimates$cate_cor[cf_outcomes, cf_outcomes, drop = FALSE]
+  } else {
+    cate_cor <- cor(cate_mat, use = "pairwise.complete.obs")
+  }
   n_cells_loaded <- if (!is.null(cf_estimates$n_cells)) cf_estimates$n_cells else nrow(df_cate)
   n_ids_loaded <- if (!is.null(cf_estimates$n_ids)) {
     cf_estimates$n_ids
@@ -2145,6 +2187,8 @@ if (isTRUE(RUN_FORESTS)) {
     "  Loaded person×party units: ", n_cells_loaded,
     "  (unique IDs: ", n_ids_loaded, "; unit tag: ", unit_loaded,
     "; clusters: ", cf_clusters_used, ")\n",
+    "  Fit outcomes present: ", paste(cf_outcomes_fit, collapse = ", "), "\n",
+    "  4×4 display outcomes: ", paste(cf_outcomes, collapse = ", "), "\n",
     sep = ""
   )
 }
@@ -2299,6 +2343,73 @@ write_fig(
   plot = fig_cf_cate_corr,
   width = 9,
   height = 9
+)
+```
+
+**Bookmark vs Report CATEs (OOB).** Same person×party units and forest fits as the 4×4; scatter of **Bookmark** CATE (x) against **Report** CATE (y). Soft-red zero guides match the correlation grid. Reuses saved CATEs when `RUN_FORESTS <- FALSE`.
+
+```{r}
+#| label: appendix-causal-forest-bookmark-report
+#| fig-width: 5.5
+#| fig-height: 5.5
+
+n_br <- nrow(df_cate)
+r_br <- cor(df_cate$Bookmark, df_cate$Report, use = "pairwise.complete.obs")
+cat(
+  "Bookmark vs Report OOB CATE scatter (exploratory)\n",
+  "  Person×party units: ", n_br,
+  "  (unique IDs: ", dplyr::n_distinct(df_cate$ID), ")\n",
+  "  cor(Bookmark, Report) = ", sprintf("%.3f", r_br), "\n",
+  sep = ""
+)
+
+cf_zero_col_br <- "#f4a6a6"
+fig_cf_bookmark_report <- ggplot(
+  df_cate,
+  aes(x = Bookmark, y = Report)
+) +
+  geom_hline(
+    yintercept = 0,
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = cf_zero_col_br
+  ) +
+  geom_vline(
+    xintercept = 0,
+    linewidth = 0.35,
+    linetype = "dashed",
+    color = cf_zero_col_br
+  ) +
+  geom_point(alpha = 0.12, size = 0.55, color = "grey25") +
+  annotate(
+    "text",
+    x = -Inf,
+    y = Inf,
+    label = sprintf("r = %.2f", r_br),
+    hjust = -0.1,
+    vjust = 1.5,
+    size = 3.5
+  ) +
+  labs(
+    title = "Exploratory: Bookmark vs Report OOB CATEs",
+    subtitle = paste0(
+      "Person×party units; emotional-political wave_9; ",
+      cf_cluster_lab
+    ),
+    x = "Bookmark CATE",
+    y = "Report CATE"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank()
+  )
+
+write_fig(
+  stem = "fig_causal_forest_bookmark_report",
+  estimates = df_cate |> select(pp_id, ID, party, W, Bookmark, Report),
+  plot = fig_cf_bookmark_report,
+  width = 5.5,
+  height = 5.5
 )
 ```
 
@@ -2555,6 +2666,8 @@ for (D in c("wave_9", "wave_10")) {
 
 ## Appendix I: Attrition analysis
 
+Attrition coding on `df_w9_w10`: `attrit = 1` if attrited from wave 9 to wave 10, `attrit = 0` if retained (non-attriter). Respondent-level attrition models use one row per person (`id_w9`); no clustering when `n_distinct(id_w9) == nrow`.
+
 ```{r}
 #| label: analysis-attrition
 #| message: false
@@ -2566,8 +2679,50 @@ for (D in c("wave_9", "wave_10")) {
 covs <- names(labels_en)
 names(covs) <- labels_en
 
+# One row per respondent → no clustering for attrition LPMs
+stopifnot(n_distinct(df_w9_w10$id_w9) == nrow(df_w9_w10))
+cat(
+  "Attrition estimation data: n = ", nrow(df_w9_w10),
+  "; n_distinct(id_w9) = ", n_distinct(df_w9_w10$id_w9),
+  " (equal → no clustering).\n",
+  "attrit coding: 0 = retained (n = ", sum(df_w9_w10$attrit == 0, na.rm = TRUE),
+  "), 1 = attrited (n = ", sum(df_w9_w10$attrit == 1, na.rm = TRUE), ").\n",
+  sep = ""
+)
 
-## model 
+## Companion: covariate main effects on attrition (same covs / scale as interaction fig)
+get_main_effect <- function(v) {
+  paste0("attrit ~ ", v) |>
+    as.formula() |>
+    lm_robust(data = df_w9_w10 |>
+                mutate(across(all_of(v), scale))) |>
+    tidy(conf.int = TRUE) |>
+    filter(term == v)
+}
+
+results_main <- covs |> lapply(get_main_effect) |> bind_rows(.id = "label")
+
+fig_attrition_covariates <-
+  results_main |>
+  ggplot(aes(x = estimate, y = forcats::fct_reorder(label, estimate))) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0) +
+  geom_point() +
+  labs(
+    title = "Covariate Main Effects on Attrition (LPM)",
+    subtitle = "Points: coefficient on scaled covariate; bars: 95% CI",
+    x = "Covariate estimate (Δ probability of attrition)",
+    y = NULL
+  ) +
+  theme_bw()
+
+write_fig(
+  stem = "fig_attrition_covariates",
+  estimates = results_main,
+  plot = fig_attrition_covariates
+)
+
+## Treatment × covariate interactions on attrition
 get_interaction <- function(v) {
   paste0("attrit ~ workshop * ", v) |> 
     as.formula() |>
@@ -2598,6 +2753,79 @@ write_fig(
   stem = "fig_attrit_interaction",
   estimates = results,
   plot = fig_attrit_interaction
+)
+```
+
+### Short-term Figure 1 companion on non-attriters
+
+Pooled short-term main ATEs only (Like/Report/Share/Bookmark × content types), same specification as Figure 1 top half (video FE + cluster ID). Sample restricted to non-attriters (`df_w9_w10$attrit == 0`). Companion for attrition sensitivity — does **not** replace article Figure 1. Long-term already conditions on retention; not re-estimated here.
+
+```{r}
+#| label: analysis-attrition-fig1-shortterm-nonattrit
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 3.5
+
+nonattrit_ids <- df_w9_w10 |>
+  filter(attrit == 0) |>
+  pull(id_w9) |>
+  as.character()
+
+df_w9_nonattrit <- datasets$wave_9 |>
+  filter(as.character(ID) %in% nonattrit_ids)
+
+cat(
+  "Short-term full: n_obs = ", nrow(datasets$wave_9),
+  ", n_id = ", n_distinct(datasets$wave_9$ID), "\n",
+  "Short-term non-attriters: n_obs = ", nrow(df_w9_nonattrit),
+  ", n_id = ", n_distinct(df_w9_nonattrit$ID), "\n",
+  sep = ""
+)
+
+estimates_fig1_nonattrit <- lapply(l_outcomegroups$main, function(Y) {
+  lapply(unique(as.character(df_w9_nonattrit$strategy_2)), function(S) {
+    run_feols_tidy(
+      df = df_w9_nonattrit |> filter(strategy_2 == S),
+      outcome_var = v_outcomes[[Y]],
+      extra_cols = list(outcome = Y, strategy = S, horizon = "Short-term")
+    )
+  }) |>
+    bind_rows()
+}) |>
+  bind_rows() |>
+  mutate(
+    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
+    outcome = factor(outcome, levels = l_outcomegroups$main),
+    strat_color = as.character(strategy)
+  )
+
+fig1_shortterm_nonattrit <- estimates_fig1_nonattrit |>
+  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_grid(cols = vars(outcome)) +
+  scale_color_manual(values = strategy_color_values, guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "Pooled short-term treatment effects by content type (non-attriters)",
+    subtitle = "Video FE; SEs clustered by respondent; retained respondents only (attrit == 0)"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10)
+  )
+
+write_fig(
+  stem = "Figure1_shortterm_nonattrit",
+  estimates = estimates_fig1_nonattrit,
+  plot = fig1_shortterm_nonattrit,
+  width = 10,
+  height = 3.5
 )
 ```
 
