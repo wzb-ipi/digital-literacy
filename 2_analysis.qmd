@@ -396,23 +396,213 @@ ensure_fig_dirs <- function() {
   dir.create(fig_dir, showWarnings = FALSE)
 }
 
+# Dropbox / multi-session Windows often locks *.rds mid-write ("cannot open the connection").
+# Write to a same-directory temp file, then replace; retry; name the path on failure.
+safe_write_rds <- function(object, path, max_tries = 5, sleep_sec = 0.5) {
+  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
+  abs_path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  tmp <- file.path(
+    dirname(path),
+    paste0(".", basename(path), ".", Sys.getpid(), ".tmp")
+  )
+  on.exit(if (file.exists(tmp)) unlink(tmp, force = TRUE), add = TRUE)
+
+  last_msg <- NULL
+  for (i in seq_len(max_tries)) {
+    ok <- tryCatch({
+      write_rds(object, tmp)
+      # Prefer copy-overwrite so a failed replace never deletes the prior RDS.
+      # Rename only when the destination is absent (same-volume, no clobber).
+      if (file.exists(path)) {
+        if (!file.copy(tmp, path, overwrite = TRUE)) {
+          stop("file.copy(overwrite) failed", call. = FALSE)
+        }
+        unlink(tmp, force = TRUE)
+      } else if (!file.rename(tmp, path)) {
+        if (!file.copy(tmp, path, overwrite = TRUE)) {
+          stop("file.rename and file.copy both failed", call. = FALSE)
+        }
+        unlink(tmp, force = TRUE)
+      }
+      TRUE
+    }, error = function(e) {
+      last_msg <<- conditionMessage(e)
+      if (file.exists(tmp)) unlink(tmp, force = TRUE)
+      Sys.sleep(sleep_sec * i)
+      FALSE
+    })
+    if (isTRUE(ok)) return(invisible(path))
+  }
+
+  stop(
+    sprintf(
+      paste0(
+        "Could not write RDS to '%s' after %d tries (%s). ",
+        "Usually a Dropbox sync lock or another RStudio/rsession holding the file. ",
+        "Pause Dropbox sync and close other R sessions, then re-render."
+      ),
+      abs_path, max_tries,
+      if (is.null(last_msg)) "unknown error" else last_msg
+    ),
+    call. = FALSE
+  )
+}
+
+# Same pattern for PDFs: ggsave opens the path with device(), which fails when a
+# viewer / Dropbox / another session holds the existing file. Write to a
+# same-directory temp PDF, then replace; on lock, rename the target aside first.
+safe_ggsave_pdf <- function(plot, path, device, width = NA, height = NA,
+                            max_tries = 5, sleep_sec = 0.5) {
+  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
+  abs_path <- normalizePath(path, winslash = "/", mustWork = FALSE)
+  tmp <- file.path(
+    dirname(path),
+    paste0(".", basename(path), ".", Sys.getpid(), ".tmp.pdf")
+  )
+  bak <- paste0(path, ".", Sys.getpid(), ".bak")
+  on.exit({
+    if (file.exists(tmp)) unlink(tmp, force = TRUE)
+    if (file.exists(bak)) unlink(bak, force = TRUE)
+  }, add = TRUE)
+
+  ggsave_to <- function(out, dev) {
+    save_args <- list(filename = out, plot = plot, device = dev)
+    if (!is.na(width)) save_args$width <- width
+    if (!is.na(height)) save_args$height <- height
+    do.call(ggsave, save_args)
+  }
+
+  replace_with_tmp <- function() {
+    if (!file.exists(tmp)) {
+      stop("temp PDF missing after ggsave", call. = FALSE)
+    }
+    if (file.exists(path)) {
+      # Prefer overwrite copy (keeps path if replace fails mid-way).
+      copied <- isTRUE(file.copy(tmp, path, overwrite = TRUE))
+      if (!copied) {
+        # Locked destination: rename aside, then move temp into place.
+        if (file.exists(bak)) unlink(bak, force = TRUE)
+        if (!file.rename(path, bak)) {
+          stop("could not rename locked PDF aside", call. = FALSE)
+        }
+        if (!file.rename(tmp, path)) {
+          # Restore prior PDF if move failed
+          file.rename(bak, path)
+          stop("could not move temp PDF into place after rename-aside", call. = FALSE)
+        }
+        unlink(bak, force = TRUE)
+      } else {
+        unlink(tmp, force = TRUE)
+      }
+    } else if (!file.rename(tmp, path)) {
+      if (!file.copy(tmp, path, overwrite = TRUE)) {
+        stop("file.rename and file.copy both failed for PDF", call. = FALSE)
+      }
+      unlink(tmp, force = TRUE)
+    }
+    invisible(TRUE)
+  }
+
+  last_msg <- NULL
+  use_device <- device
+  for (i in seq_len(max_tries)) {
+    ok <- tryCatch({
+      if (file.exists(tmp)) unlink(tmp, force = TRUE)
+      tryCatch(
+        ggsave_to(tmp, use_device),
+        error = function(e) {
+          # cairo_pdf can fail on some Windows setups; fall back once to pdf()
+          if (!identical(use_device, grDevices::pdf)) {
+            warning(
+              sprintf(
+                "ggsave failed for temp PDF near '%s' (%s); falling back to pdf().",
+                abs_path, conditionMessage(e)
+              ),
+              call. = FALSE
+            )
+            use_device <<- grDevices::pdf
+            ggsave_to(tmp, use_device)
+          } else {
+            stop(e)
+          }
+        }
+      )
+      # If destination still locked, clear it before replace
+      if (file.exists(path)) {
+        can_write <- tryCatch({
+          con <- file(path, open = "r+b")
+          close(con)
+          TRUE
+        }, error = function(e) FALSE)
+        if (!isTRUE(can_write)) {
+          if (file.exists(bak)) unlink(bak, force = TRUE)
+          if (!isTRUE(file.rename(path, bak))) {
+            unlink(path, force = TRUE)
+          }
+        }
+      }
+      replace_with_tmp()
+      TRUE
+    }, error = function(e) {
+      last_msg <<- conditionMessage(e)
+      if (file.exists(tmp)) unlink(tmp, force = TRUE)
+      Sys.sleep(sleep_sec * i)
+      FALSE
+    })
+    if (isTRUE(ok)) return(invisible(path))
+  }
+
+  stop(
+    sprintf(
+      paste0(
+        "Could not write PDF to '%s' after %d tries (%s). ",
+        "Usually a PDF viewer (PDF24/Acrobat/Sumatra/Edge), Dropbox sync, ",
+        "Explorer preview, or another R session holding the file. ",
+        "Close the PDF if open, pause Dropbox, then re-render."
+      ),
+      abs_path, max_tries,
+      if (is.null(last_msg)) "unknown error" else last_msg
+    ),
+    call. = FALSE
+  )
+}
+
 write_fig <- function(stem, estimates, plot, width = NA, height = NA,
                       device = NULL) {
   ensure_fig_dirs()
-  write_rds(estimates, file.path(est_dir, paste0(stem, ".rds")))
-  write_rds(plot, file.path(gg_dir, paste0(stem, ".rds")))
-  # cairo_pdf is preferred when available; plain pdf works on Windows without Cairo
+  est_path <- file.path(est_dir, paste0(stem, ".rds"))
+  gg_path  <- file.path(gg_dir, paste0(stem, ".rds"))
+  pdf_path <- file.path(fig_dir, paste0(stem, ".pdf"))
+
+  safe_write_rds(estimates, est_path)
+
+  # ggplot RDS is for later reuse; do not abort the render if Dropbox locks it
+  tryCatch(
+    safe_write_rds(plot, gg_path),
+    error = function(e) {
+      warning(
+        sprintf(
+          "Skipping ggplot RDS for stem '%s' at '%s' (%s). Estimates + PDF still written.",
+          stem,
+          normalizePath(gg_path, winslash = "/", mustWork = FALSE),
+          conditionMessage(e)
+        ),
+        call. = FALSE
+      )
+    }
+  )
+
+  # cairo_pdf preferred when available; fall back to pdf() on Windows/device failure
   if (is.null(device)) {
     device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else grDevices::pdf
   }
-  save_args <- list(
-    filename = file.path(fig_dir, paste0(stem, ".pdf")),
+  safe_ggsave_pdf(
     plot = plot,
-    device = device
+    path = pdf_path,
+    device = device,
+    width = width,
+    height = height
   )
-  if (!is.na(width)) save_args$width <- width
-  if (!is.na(height)) save_args$height <- height
-  do.call(ggsave, save_args)
   print(plot)
   invisible(plot)
 }
@@ -1799,16 +1989,20 @@ texreg::htmlreg(
 )
 ```
 
-# Exploratory: Watch time vs liking (row-level; by type × treatment)
+# Exploratory: Watch / bookmark vs liking (row-level; type × All/AfD)
 
-**Descriptive smooths** (not causal). Unit = **video–respondent row** (not person or person×party aggregates). Sample = short-term engagement sample `wave_9`, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—the same content-type span as the pooled engagement ATEs (`f_I`), with finite watch time (`watch_percentage_`) and liking (`videoLikep1r`). **x** = watch time; **y** = binary liking. Curves are `geom_smooth()` only (no points). Facets: **rows** = video type; **cols** = treatment vs control. Companion figure colors by AfD vs non-AfD **sending party** (`party == "AfD"`, same definition as AfD-video analyses); entertainment rows have no party sender and fall in non-AfD. Replaces the retired person-aggregated scatter `fig_avg_watch_like_by_treatment`.
+**Descriptive fits** (not causal). Unit = **video–respondent row**. Sample = short-term engagement `wave_9`, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—same span as pooled engagement ATEs (`f_I`). Facets: **rows** = video type; **cols** = all videos | AfD-sender videos only (`party == "AfD"`). Within each panel: two treatment-colored fits (no dense row points) plus two summary dots at (mean x, mean liking) by arm. **(1)** Watch → like: `geom_smooth()`; x = `watch_percentage_`. **(2)** Bookmark → like companion: linear `geom_smooth(method = "lm")` (both binary); x = `videoBookmarkp1r`. Stems: `fig_watch_like_all_afd`, `fig_bookmark_like_all_afd`. Replaces retired `fig_watch_like_by_type_treatment` / `_afd` and older `fig_avg_watch_like_by_treatment`.
 
 ```{r}
-#| label: appendix-watch-like-by-type-treatment
+#| label: appendix-watch-like-all-afd
 #| fig-width: 8
 #| fig-height: 9
 
-df_watch_like_row <- datasets$wave_9 |>
+treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
+treat_cols_dark <- c(Control = "#2B4C6F", Treatment = "#A33A39")
+panel_levels <- c("All videos", "AfD videos")
+
+df_watch_like_base <- datasets$wave_9 |>
   filter(strategy_2 %in% strategy_order_article) |>
   transmute(
     ID = as.character(ID),
@@ -1817,72 +2011,68 @@ df_watch_like_row <- datasets$wave_9 |>
       ifelse(workshop_Treatment == 1, "Treatment", "Control"),
       levels = c("Control", "Treatment")
     ),
-    afd_video = factor(
-      ifelse(party == "AfD", "AfD video", "Non-AfD video"),
-      levels = c("Non-AfD video", "AfD video")
-    ),
+    party = party,
     watch = as.numeric(watch_percentage_),
     like = as.numeric(videoLikep1r)
   ) |>
   filter(is.finite(watch), is.finite(like), !is.na(strategy), !is.na(treatment))
 
+df_watch_like_row <- bind_rows(
+  df_watch_like_base |> mutate(panel = "All videos"),
+  df_watch_like_base |>
+    filter(party == "AfD") |>
+    mutate(panel = "AfD videos")
+) |>
+  mutate(panel = factor(panel, levels = panel_levels))
+
+df_watch_like_means <- df_watch_like_row |>
+  group_by(strategy, panel, treatment) |>
+  summarise(
+    watch = mean(watch, na.rm = TRUE),
+    like = mean(like, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
 cat(
-  "Watch time vs liking (row-level; wave_9; all content types)\n",
-  "  N rows: ", nrow(df_watch_like_row),
-  "  (unique IDs: ", dplyr::n_distinct(df_watch_like_row$ID), ")\n",
-  "  Control: ", sum(df_watch_like_row$treatment == "Control"),
-  "; Treatment: ", sum(df_watch_like_row$treatment == "Treatment"), "\n",
-  "  By type: ",
+  "Watch time vs liking (row-level; wave_9; All | AfD panels)\n",
+  "  N rows (All): ", sum(df_watch_like_row$panel == "All videos"),
+  "  (unique IDs: ", dplyr::n_distinct(df_watch_like_base$ID), ")\n",
+  "  N rows (AfD videos): ", sum(df_watch_like_row$panel == "AfD videos"), "\n",
+  "  Control (All): ", sum(df_watch_like_base$treatment == "Control"),
+  "; Treatment (All): ", sum(df_watch_like_base$treatment == "Treatment"), "\n",
+  "  By type (All): ",
   paste(
-    gsub("\n", " ", levels(df_watch_like_row$strategy), fixed = TRUE),
-    as.integer(table(df_watch_like_row$strategy)[levels(df_watch_like_row$strategy)]),
+    gsub("\n", " ", levels(df_watch_like_base$strategy), fixed = TRUE),
+    as.integer(table(df_watch_like_base$strategy)[levels(df_watch_like_base$strategy)]),
     sep = "=",
     collapse = "; "
   ),
   "\n",
-  "  AfD video rows: ", sum(df_watch_like_row$afd_video == "AfD video"),
-  "; Non-AfD: ", sum(df_watch_like_row$afd_video == "Non-AfD video"), "\n",
   sep = ""
 )
 
-fig_watch_like_by_type_treatment <- ggplot(
+fig_watch_like_all_afd <- ggplot(
   df_watch_like_row,
-  aes(x = watch, y = like)
+  aes(x = watch, y = like, color = treatment)
 ) +
-  geom_smooth(se = TRUE, linewidth = 0.8, color = "#1b4f72") +
-  facet_grid(rows = vars(strategy), cols = vars(treatment)) +
+  geom_smooth(se = TRUE, linewidth = 0.85) +
+  geom_point(
+    data = df_watch_like_means,
+    aes(x = watch, y = like, color = treatment, fill = treatment),
+    shape = 21,
+    size = 2.8,
+    stroke = 0.7,
+    inherit.aes = FALSE
+  ) +
+  scale_color_manual(values = treat_cols, name = NULL) +
+  scale_fill_manual(values = treat_cols_dark, name = NULL) +
+  facet_grid(rows = vars(strategy), cols = vars(panel)) +
   labs(
     title = "Watch time vs liking",
-    subtitle = "Video–respondent rows; wave 9; facets = content type × treatment",
+    subtitle = "Video–respondent rows; wave 9; curves by treatment; dots = panel means",
     x = "Watch time (share of video duration)",
     y = "Liking (0/1)"
-  ) +
-  theme_bw(base_size = 12) +
-  theme(
-    panel.grid.minor = element_blank(),
-    strip.background = element_rect(fill = "grey95", color = "grey80")
-  )
-
-write_fig(
-  stem = "fig_watch_like_by_type_treatment",
-  estimates = df_watch_like_row,
-  plot = fig_watch_like_by_type_treatment,
-  width = 8,
-  height = 9
-)
-
-fig_watch_like_by_type_treatment_afd <- ggplot(
-  df_watch_like_row,
-  aes(x = watch, y = like, color = afd_video)
-) +
-  geom_smooth(se = TRUE, linewidth = 0.8) +
-  facet_grid(rows = vars(strategy), cols = vars(treatment)) +
-  labs(
-    title = "Watch time vs liking by AfD video",
-    subtitle = "Video–respondent rows; wave 9; color = sending party AfD vs non-AfD",
-    x = "Watch time (share of video duration)",
-    y = "Liking (0/1)",
-    color = NULL
   ) +
   theme_bw(base_size = 12) +
   theme(
@@ -1892,9 +2082,96 @@ fig_watch_like_by_type_treatment_afd <- ggplot(
   )
 
 write_fig(
-  stem = "fig_watch_like_by_type_treatment_afd",
-  estimates = df_watch_like_row,
-  plot = fig_watch_like_by_type_treatment_afd,
+  stem = "fig_watch_like_all_afd",
+  estimates = list(rows = df_watch_like_row, means = df_watch_like_means),
+  plot = fig_watch_like_all_afd,
+  width = 8,
+  height = 9
+)
+```
+
+**Companion:** same facet / treatment-color / mean-dot structure; **x** = bookmarking (`videoBookmarkp1r`, 0/1), **y** = liking; linear fit (`method = "lm"`) because both axes are binary.
+
+```{r}
+#| label: appendix-bookmark-like-all-afd
+#| fig-width: 8
+#| fig-height: 9
+
+df_bookmark_like_base <- datasets$wave_9 |>
+  filter(strategy_2 %in% strategy_order_article) |>
+  transmute(
+    ID = as.character(ID),
+    strategy = factor(as.character(strategy_2), levels = strategy_order_article),
+    treatment = factor(
+      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+      levels = c("Control", "Treatment")
+    ),
+    party = party,
+    bookmark = as.numeric(videoBookmarkp1r),
+    like = as.numeric(videoLikep1r)
+  ) |>
+  filter(is.finite(bookmark), is.finite(like), !is.na(strategy), !is.na(treatment))
+
+df_bookmark_like_row <- bind_rows(
+  df_bookmark_like_base |> mutate(panel = "All videos"),
+  df_bookmark_like_base |>
+    filter(party == "AfD") |>
+    mutate(panel = "AfD videos")
+) |>
+  mutate(panel = factor(panel, levels = panel_levels))
+
+df_bookmark_like_means <- df_bookmark_like_row |>
+  group_by(strategy, panel, treatment) |>
+  summarise(
+    bookmark = mean(bookmark, na.rm = TRUE),
+    like = mean(like, na.rm = TRUE),
+    n = n(),
+    .groups = "drop"
+  )
+
+cat(
+  "Bookmarking vs liking (row-level; wave_9; All | AfD panels; lm)\n",
+  "  N rows (All): ", sum(df_bookmark_like_row$panel == "All videos"),
+  "  (unique IDs: ", dplyr::n_distinct(df_bookmark_like_base$ID), ")\n",
+  "  N rows (AfD videos): ", sum(df_bookmark_like_row$panel == "AfD videos"), "\n",
+  "  Control (All): ", sum(df_bookmark_like_base$treatment == "Control"),
+  "; Treatment (All): ", sum(df_bookmark_like_base$treatment == "Treatment"), "\n",
+  sep = ""
+)
+
+fig_bookmark_like_all_afd <- ggplot(
+  df_bookmark_like_row,
+  aes(x = bookmark, y = like, color = treatment)
+) +
+  geom_smooth(method = "lm", se = TRUE, linewidth = 0.85) +
+  geom_point(
+    data = df_bookmark_like_means,
+    aes(x = bookmark, y = like, color = treatment, fill = treatment),
+    shape = 21,
+    size = 2.8,
+    stroke = 0.7,
+    inherit.aes = FALSE
+  ) +
+  scale_color_manual(values = treat_cols, name = NULL) +
+  scale_fill_manual(values = treat_cols_dark, name = NULL) +
+  facet_grid(rows = vars(strategy), cols = vars(panel)) +
+  labs(
+    title = "Bookmarking vs liking",
+    subtitle = "Video–respondent rows; wave 9; linear fits by treatment; dots = panel means",
+    x = "Bookmarking (0/1)",
+    y = "Liking (0/1)"
+  ) +
+  theme_bw(base_size = 12) +
+  theme(
+    panel.grid.minor = element_blank(),
+    strip.background = element_rect(fill = "grey95", color = "grey80"),
+    legend.position = "bottom"
+  )
+
+write_fig(
+  stem = "fig_bookmark_like_all_afd",
+  estimates = list(rows = df_bookmark_like_row, means = df_bookmark_like_means),
+  plot = fig_bookmark_like_all_afd,
   width = 8,
   height = 9
 )
