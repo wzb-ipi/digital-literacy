@@ -2,7 +2,7 @@
 <html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
 
 <meta charset="utf-8">
-<meta name="generator" content="quarto-1.8.25">
+<meta name="generator" content="quarto-1.8.27">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
@@ -2252,31 +2252,33 @@ vertical-align: -.125em;
 <div class="cell">
 <details class="code-fold">
 <summary>Code</summary>
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># This file requires access to full data</span></span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>data_path <span class="ot">&lt;-</span> <span class="st">&quot;../../1_Projects/Covid Vaccine Allocation/4_data/&quot;</span></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="co"># Large video files</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>df_09v <span class="ot">&lt;-</span> <span class="fu">read_dta</span>(</span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(</span>
-<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>    data_path,</span>
-<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;wave_9/Full-Launch/paper_tiktok/3_merged_data/w9_video_reshaped_alt.dta&quot;</span>))</span>
-<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>df_10v <span class="ot">&lt;-</span> <span class="fu">read_dta</span>(</span>
-<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(data_path, <span class="st">&quot;wave_10/merged/w10_Video_reshaped_alt.dta&quot;</span>))</span>
-<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="co"># Wave 9 and 10 combined data</span></span>
-<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a>df_w10 <span class="ot">&lt;-</span> </span>
-<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_dta</span>(<span class="st">&quot;../../1_Projects/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta&quot;</span>) </span>
-<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit figure labels here</span></span>
-<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a>strategies <span class="ot">&lt;-</span> </span>
-<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(<span class="st">&quot;political</span><span class="sc">\n</span><span class="st">(emotional)&quot;</span>, <span class="st">&quot;political</span><span class="sc">\n</span><span class="st">(neutral)&quot;</span>)</span>
-<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>ps <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
-<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a>  <span class="at">parties =</span> <span class="fu">c</span>(<span class="st">&quot;AfD&quot;</span>, <span class="st">&quot;BSW&quot;</span>, <span class="st">&quot;CDU/CSU&quot;</span>, <span class="st">&quot;FDP&quot;</span>, <span class="st">&quot;Grüne&quot;</span>, <span class="st">&quot;Linke&quot;</span>, <span class="st">&quot;SPD&quot;</span>),</span>
-<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>  <span class="at">party_stub =</span> <span class="fu">c</span>(<span class="st">&quot;afd&quot;</span>, <span class="st">&quot;bsw&quot;</span>, <span class="st">&quot;cdu&quot;</span>, <span class="st">&quot;fdp&quot;</span>, <span class="st">&quot;gruene&quot;</span>, <span class="st">&quot;linke&quot;</span>, <span class="st">&quot;spd&quot;</span>)</span>
-<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb2"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># This file requires access to full data.</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="co"># Paths are relative to digital-literacy/ (one level below TikTok/, sibling of</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="co"># &quot;Covid Vaccine Allocation&quot; under 1_Projects/). Old ../../1_Projects/... did not resolve.</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>data_path <span class="ot">&lt;-</span> <span class="st">&quot;../../Covid Vaccine Allocation/4_data/&quot;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="co"># Large video files</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>df_09v <span class="ot">&lt;-</span> <span class="fu">read_dta</span>(</span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(</span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a>    data_path,</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a>    <span class="st">&quot;wave_9/Full-Launch/paper_tiktok/3_merged_data/w9_video_reshaped_alt.dta&quot;</span>))</span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a>df_10v <span class="ot">&lt;-</span> <span class="fu">read_dta</span>(</span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">paste0</span>(data_path, <span class="st">&quot;wave_10/merged/w10_Video_reshaped_alt.dta&quot;</span>))</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co"># Wave 9 and 10 combined data</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a>df_w10 <span class="ot">&lt;-</span> </span>
+<span id="cb2-17"><a href="#cb2-17" aria-hidden="true" tabindex="-1"></a>  <span class="fu">read_dta</span>(<span class="fu">paste0</span>(data_path, <span class="st">&quot;wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta&quot;</span>)) </span>
+<span id="cb2-18"><a href="#cb2-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-19"><a href="#cb2-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-20"><a href="#cb2-20" aria-hidden="true" tabindex="-1"></a><span class="co"># Edit figure labels here</span></span>
+<span id="cb2-21"><a href="#cb2-21" aria-hidden="true" tabindex="-1"></a>strategies <span class="ot">&lt;-</span> </span>
+<span id="cb2-22"><a href="#cb2-22" aria-hidden="true" tabindex="-1"></a>  <span class="fu">c</span>(<span class="st">&quot;political</span><span class="sc">\n</span><span class="st">(emotional)&quot;</span>, <span class="st">&quot;political</span><span class="sc">\n</span><span class="st">(neutral)&quot;</span>)</span>
+<span id="cb2-23"><a href="#cb2-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-24"><a href="#cb2-24" aria-hidden="true" tabindex="-1"></a>ps <span class="ot">&lt;-</span> <span class="fu">tibble</span>(</span>
+<span id="cb2-25"><a href="#cb2-25" aria-hidden="true" tabindex="-1"></a>  <span class="at">parties =</span> <span class="fu">c</span>(<span class="st">&quot;AfD&quot;</span>, <span class="st">&quot;BSW&quot;</span>, <span class="st">&quot;CDU/CSU&quot;</span>, <span class="st">&quot;FDP&quot;</span>, <span class="st">&quot;Grüne&quot;</span>, <span class="st">&quot;Linke&quot;</span>, <span class="st">&quot;SPD&quot;</span>),</span>
+<span id="cb2-26"><a href="#cb2-26" aria-hidden="true" tabindex="-1"></a>  <span class="at">party_stub =</span> <span class="fu">c</span>(<span class="st">&quot;afd&quot;</span>, <span class="st">&quot;bsw&quot;</span>, <span class="st">&quot;cdu&quot;</span>, <span class="st">&quot;fdp&quot;</span>, <span class="st">&quot;gruene&quot;</span>, <span class="st">&quot;linke&quot;</span>, <span class="st">&quot;spd&quot;</span>)</span>
+<span id="cb2-27"><a href="#cb2-27" aria-hidden="true" tabindex="-1"></a>)</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
 </details>
 </div>
 </section>
