@@ -589,6 +589,12 @@ df_w10 <- df_w10 %>%
       TikTok_User %in% c(1L, 3L)                 ~ NA_integer_,
       TRUE                                       ~ NA_integer_
     ),
+    # income has one very high outlier: 
+    Haushaltseinkommen = case_when(
+    Haushaltseinkommen < 0 ~ NA_real_,
+    Haushaltseinkommen > 50000 ~ NA_real_,
+    TRUE ~ Haushaltseinkommen
+    ), 
     # Define outcome (1 = attrited, 0 = stayed)
     attrit = ifelse(w9_w10 == 1, 0, 1)
   ) %>%
