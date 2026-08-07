@@ -3215,8 +3215,68 @@ fig_attrit_interaction <-
 write_fig(
   stem = "fig_attrit_interaction",
   estimates = results,
-  plot = fig_attrit_interaction
+  plot = fig_attrit_interaction,
+  width = 7,
+  height = 12
 )
+
+# Basic attrition summary
+attrition_table <- df_w9_w10 |>
+  mutate(
+    condition = case_when(
+      workshop == 0 ~ "Control",
+      workshop == 1 ~ "Treatment",
+      TRUE ~ NA_character_
+    )
+  ) |>
+  group_by(condition) |>
+  summarise(
+    n_original = n(),
+    n_retained = sum(attrit == 0, na.rm = TRUE),
+    n_attrited = sum(attrit == 1, na.rm = TRUE),
+    attrition_rate = 100 * mean(attrit, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  bind_rows(
+    df_w9_w10 |>
+      summarise(
+        condition = "Overall",
+        n_original = n(),
+        n_retained = sum(attrit == 0, na.rm = TRUE),
+        n_attrited = sum(attrit == 1, na.rm = TRUE),
+        attrition_rate = 100 * mean(attrit, na.rm = TRUE)
+      )
+  )
+
+# Treatment-control difference in attrition
+attrition_model <- estimatr::lm_robust(
+  attrit ~ workshop,
+  data = df_w9_w10
+)
+
+attrition_difference <- attrition_model |>
+  broom::tidy(conf.int = TRUE) |>
+  filter(term == "workshop") |>
+  mutate(
+    across(c(estimate, conf.low, conf.high), ~ 100 * .x)
+  )
+
+
+knitr::kable(
+  attrition_table,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 2,
+  col.names = c(
+    "Condition",
+    "Original $N$",
+    "Retained",
+    "Attrited",
+    "Attrition rate (\\%)"
+  ),
+  caption = "Attrition by treatment condition."
+)
+
 ```
 
 ### Short-term Figure 1 companion on non-attriters
