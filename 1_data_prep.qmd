@@ -497,6 +497,14 @@ df_w10 <- df_w10 %>%
   competence_fdp     = code_party_bin(Competence, 6),
   competence_left    = code_party_bin(Competence, 7),
   competence_bsw     = code_party_bin(Competence, 8),
+  competence_other = code_party_bin(Competence, 9),
+  competence_none  = code_party_bin(Competence, 10),
+  # gender
+  gender_female = case_when(
+  as.numeric(Geschlecht) == 1 ~ 1L,
+  as.numeric(Geschlecht) == 2 ~ 0L,
+  TRUE ~ NA_integer_  # seven "other" respondents and any missing values
+  ),
   # Employment status: substantively grouped categories
   employment_fulltime = code_party_bin(
   Beruflicher_Status, 1
