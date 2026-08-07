@@ -3182,7 +3182,9 @@ fig_attrition_covariates <-
 write_fig(
   stem = "fig_attrition_covariates",
   estimates = results_main,
-  plot = fig_attrition_covariates
+  plot = fig_attrition_covariates,
+  width = 7,
+  height = 12
 )
 
 ## Treatment × covariate interactions on attrition
@@ -3262,11 +3264,25 @@ attrition_difference <- attrition_model |>
   )
 
 
-knitr::kable(
+# Table note
+attrition_note <- sprintf(
+  paste0(
+    "The treatment--control difference is %.2f percentage points ",
+    "(95\\%% CI: %.2f to %.2f; $p=%.3f$)."
+  ),
+  attrition_difference$estimate,
+  attrition_difference$conf.low,
+  attrition_difference$conf.high,
+  attrition_difference$p.value
+)
+
+# Generate LaTeX table
+attrition_table_tex <- knitr::kable(
   attrition_table,
   format = "latex",
   booktabs = TRUE,
   digits = 2,
+  escape = FALSE,
   col.names = c(
     "Condition",
     "Original $N$",
@@ -3274,9 +3290,35 @@ knitr::kable(
     "Attrited",
     "Attrition rate (\\%)"
   ),
-  caption = "Attrition by treatment condition."
+  caption = "Attrition by treatment condition.",
+  label = "attrition-summary"
+) |>
+  kableExtra::footnote(
+    general = paste0("\\textit{Note:} ", attrition_note),
+    general_title = "",
+    threeparttable = TRUE,
+    escape = FALSE
+  )
+
+# Save LaTeX table
+writeLines(
+  as.character(attrition_table_tex),
+  file.path("tabs", "tab_attrition_summary.tex")
 )
 
+# Display a readable table in the compiled HTML
+knitr::kable(
+  attrition_table,
+  digits = 2,
+  col.names = c(
+    "Condition",
+    "Original N",
+    "Retained",
+    "Attrited",
+    "Attrition rate (%)"
+  ),
+  caption = "Attrition by treatment condition."
+)
 ```
 
 ### Short-term Figure 1 companion on non-attriters
