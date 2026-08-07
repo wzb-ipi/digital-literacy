@@ -626,52 +626,60 @@ comments_df <-read.csv("data/comment_classification.csv")
 
 # covariates
 
-# ---- English labels for covariates (matches your df after tolower) ----
+# ---- English labels for covariates (matches prepared data after tolower) ----
 labels_en <- c(
-  # basics
-  alter = "Age",
-  geschlecht = "Gender",
-  citysize = "City size",
+  # Basics
+  alter         = "Age",
+  gender_female = "Female (vs male)",
+  citysize      = "City size",
 
-  # region binaries & state dummies
+  # Region binaries and state indicators
   east = "East (vs West)",
-  state_baden_wuerttemberg = "State: Baden-Württemberg",
-  state_bayern              = "State: Bavaria",
-  state_berlin              = "State: Berlin",
-  state_brandenburg         = "State: Brandenburg",
-  state_bremen              = "State: Bremen",
-  state_hamburg             = "State: Hamburg",
-  state_hessen              = "State: Hesse",
+  state_baden_wuerttemberg    = "State: Baden-Württemberg",
+  state_bayern                = "State: Bavaria",
+  state_berlin                = "State: Berlin",
+  state_brandenburg           = "State: Brandenburg",
+  state_bremen                = "State: Bremen",
+  state_hamburg               = "State: Hamburg",
+  state_hessen                = "State: Hesse",
   state_mecklenburg_vorpommern = "State: Mecklenburg–Western Pomerania",
-  state_niedersachsen          = "State: Lower Saxony",
-  state_nordrhein_westfalen    = "State: North Rhine–Westphalia",
-  state_rheinland_pfalz        = "State: Rhineland–Palatinate",
-  state_saarland               = "State: Saarland",
-  state_sachsen                = "State: Saxony",
-  state_sachsen_anhalt         = "State: Saxony-Anhalt",
-  state_schleswig_holstein     = "State: Schleswig-Holstein",
-  state_thueringen             = "State: Thuringia",
+  state_niedersachsen         = "State: Lower Saxony",
+  state_nordrhein_westfalen   = "State: North Rhine-Westphalia",
+  state_rheinland_pfalz       = "State: Rhineland-Palatinate",
+  state_saarland              = "State: Saarland",
+  state_sachsen               = "State: Saxony",
+  state_sachsen_anhalt        = "State: Saxony-Anhalt",
+  state_schleswig_holstein    = "State: Schleswig-Holstein",
+  state_thueringen            = "State: Thuringia",
 
-  # urbanization binaries
-  urban_ballungsraum   = "Urban: Ballungsraum",
-  urban_stadtregion    = "Urban: Stadtregion",
-  urban_mittelzentrum  = "Urban: Mittelzentrengebiet",
-  urban_high           = "Urban (1–2) vs Mittelzentrum (3)",
+  # Urbanization indicators
+  urban_ballungsraum  = "Urban: metropolitan area",
+  urban_stadtregion   = "Urban: city region",
+  urban_mittelzentrum = "Urban: medium-sized center",
+  urban_high          = "High urbanization",
 
-  # social media (post-lowercase names)
-  video_userfacebook       = "Uses Facebook (video)",
-  video_usertiktok         = "Uses TikTok (video)",
-  video_usersnapchat       = "Uses Snapchat (video)",
-  video_userpinterest      = "Uses Pinterest (video)",
-  video_userx_ehem_twitter = "Uses X/Twitter (video)",
-  video_usertwitch         = "Uses Twitch (video)",
+  # Social-media use
+  video_userfacebook       = "Uses Facebook",
+  video_usertiktok         = "Uses TikTok",
+  video_usersnapchat       = "Uses Snapchat",
+  video_userpinterest      = "Uses Pinterest",
+  video_userx_ehem_twitter = "Uses X/Twitter",
+  video_usertwitch         = "Uses Twitch",
 
-  # attitudes
+  # Political attitudes
   politikinteresse = "Political interest",
-  competence       = "Perceived competence",
-  lr               = "Left–Right ideology",
+  lr               = "Left–right ideology",
 
-  # party ID (w9)
+  # Party regarded as competent
+  competence_cdu_csu = "Competent party: CDU/CSU",
+  competence_spd     = "Competent party: SPD",
+  competence_afd     = "Competent party: AfD",
+  competence_greens  = "Competent party: Greens",
+  competence_fdp     = "Competent party: FDP",
+  competence_left    = "Competent party: The Left",
+  competence_bsw     = "Competent party: BSW",
+
+  # Party identification at wave 9
   party_id_w9_cdu    = "Party ID: CDU/CSU",
   party_id_w9_spd    = "Party ID: SPD",
   party_id_w9_afd    = "Party ID: AfD",
@@ -680,7 +688,7 @@ labels_en <- c(
   party_id_w9_linke  = "Party ID: The Left",
   party_id_w9_bsw    = "Party ID: BSW",
 
-  # PTV pre (w9)
+  # Pre-treatment propensities to vote
   ptv_w9_pre_cdu    = "PTV CDU/CSU (pre)",
   ptv_w9_pre_spd    = "PTV SPD (pre)",
   ptv_w9_pre_linke  = "PTV The Left (pre)",
@@ -689,27 +697,43 @@ labels_en <- c(
   ptv_w9_pre_afd    = "PTV AfD (pre)",
   ptv_w9_pre_bsw    = "PTV BSW (pre)",
 
-  # other covariates
-  prior_performance_general_2 = "Perceived gov't performance (prior)",
+  # Other attitudes
+  prior_performance_general_2 = "Government performance (prior)",
   solidaritat                 = "Solidarity",
   sozialer_zusammenhalt       = "Social cohesion",
   migration                   = "Immigration attitudes",
 
-  # TikTok splits
-  tiktok_user_yes       = "Current TikTok user",
-  tiktok_user_no        = "Not a TikTok user",
-  tiktok_potential_yes  = "Open to get a TikTok account",
-  tiktok_potential_no   = "Not open to get a TikTok account",
+  # TikTok-specific indicators
+  tiktok_user_yes      = "Current TikTok user",
+  tiktok_user_no       = "Not a TikTok user",
+  tiktok_potential_yes = "Open to getting a TikTok account",
+  tiktok_potential_no  = "Not open to getting a TikTok account",
 
-  # sociodemographics
-  beruflicher_status       = "Employment status",
-  berufliche_stellung      = "Occupational position",
-  bildung_schulisch        = "School education",
-  bildung_beruflich        = "Vocational education",
-  eigene_kinder            = "Has children",
-  haushaltsgrobe           = "Household size",
-  migrationshintergrund_eltern = "Parental migration background",
-  haushaltseinkommen       = "Household income"
+  # Employment status
+  employment_fulltime         = "Employment: full-time",
+  employment_parttime         = "Employment: part-time",
+  employment_marginal         = "Employment: marginal/irregular",
+  employment_training_service = "Employment: training/service",
+  employment_not_working      = "Not currently employed",
+
+  # Occupational position
+  occupation_worker         = "Occupation: worker",
+  occupation_employee       = "Occupation: employee",
+  occupation_public_service = "Occupation: public service",
+  occupation_self_employed  = "Occupation: self-employed",
+
+  # Education
+  school_education_level = "School education level",
+  vocational_basic       = "Vocational education: basic",
+  vocational_advanced    = "Vocational education: advanced",
+  vocational_other       = "Vocational education: other",
+  vocational_none        = "No vocational qualification",
+
+  # Household and demographic characteristics
+  eigene_kinder                 = "Has children",
+  haushaltsgrobe                = "Household size",
+  migrationshintergrund_eltern  = "Parental migration background",
+  haushaltseinkommen            = "Household income"
 )
 
 ```

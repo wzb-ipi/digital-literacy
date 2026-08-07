@@ -167,7 +167,6 @@ code_party_bin <- function(x, codes) {
 
 ```{r}
 
-
 df_w10 <- df_w10 %>%
   dplyr::filter(SwitchedToRandom == 1) |>
   filter(!VideoDuration %in% c(-9, NA)) |>
@@ -490,6 +489,70 @@ df_w10 <- df_w10 %>%
   Video_UserPinterest = recode_yes_no(Video_UserPinterest),
   Video_UserX_ehem_Twitter = recode_yes_no(Video_UserX_ehem_Twitter),
   Video_UserTwitch = recode_yes_no(Video_UserTwitch),
+  # Party regarded as competent
+  competence_cdu_csu = code_party_bin(Competence, c(1, 2)),
+  competence_spd     = code_party_bin(Competence, 3),
+  competence_afd     = code_party_bin(Competence, 4),
+  competence_greens  = code_party_bin(Competence, 5),
+  competence_fdp     = code_party_bin(Competence, 6),
+  competence_left    = code_party_bin(Competence, 7),
+  competence_bsw     = code_party_bin(Competence, 8),
+  competence_other = code_party_bin(Competence, 9),
+  competence_none  = code_party_bin(Competence, 10),
+  # gender
+  gender_female = case_when(
+  as.numeric(Geschlecht) == 1 ~ 1L,
+  as.numeric(Geschlecht) == 2 ~ 0L,
+  TRUE ~ NA_integer_  # seven "other" respondents and any missing values
+  ),
+  # Employment status: substantively grouped categories
+  employment_fulltime = code_party_bin(
+  Beruflicher_Status, 1
+  ),
+  employment_parttime = code_party_bin(
+  Beruflicher_Status, c(2, 3)
+  ),
+  employment_marginal = code_party_bin(
+  Beruflicher_Status, c(4, 5, 6)
+  ),
+  employment_training_service = code_party_bin(
+  Beruflicher_Status, c(7, 8, 9, 10)
+  ),
+  employment_not_working = code_party_bin(
+  Beruflicher_Status, c(11, 12, 13)
+  ),
+  # Occupational position
+  occupation_worker = code_party_bin(
+  Berufliche_Stellung, 1
+  ),
+  occupation_employee = code_party_bin(
+  Berufliche_Stellung, 2
+  ),
+  occupation_public_service = code_party_bin(
+  Berufliche_Stellung, 3
+  ),
+  occupation_self_employed = code_party_bin(
+  Berufliche_Stellung, c(4, 5)
+  ),
+  # Vocational education
+  vocational_basic = code_party_bin(
+  Bildung_beruflich, c(1, 2)
+  ),
+  vocational_advanced = code_party_bin(
+  Bildung_beruflich, c(3, 4, 5)
+  ),
+  vocational_other = code_party_bin(
+  Bildung_beruflich, 6
+  ),
+  vocational_none = code_party_bin(
+  Bildung_beruflich, 7
+  ),
+  # School education: retain ordered categories 1–5; set "other" to missing
+  school_education_level = case_when(
+  as.numeric(Bildung_schulisch) %in% 1:5 ~
+    as.numeric(Bildung_schulisch),
+  TRUE ~ NA_real_
+  ),
   # Reverse so higher values indicate greater political interest
   Politikinteresse = case_when(
     is.na(Politikinteresse) ~ NA_real_,
