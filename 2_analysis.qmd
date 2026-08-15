@@ -619,6 +619,23 @@ datasets <- list(
   wave_9  = read_rds("data/wave_9.rds"),
   wave_10 = read_rds("data/wave_10.rds"))
 
+
+df_w10_no_repeated_videos <- datasets$wave_10 |>
+  filter(shown_both_waves == 0)
+
+tibble(
+  sample = c("Original wave 10", "No repeated videos"),
+  observations = c(
+    nrow(datasets$wave_10),
+    nrow(df_w10_no_repeated_videos)
+  ),
+  respondents = c(
+    n_distinct(datasets$wave_10$ID),
+    n_distinct(df_w10_no_repeated_videos$ID)
+  )
+)
+
+
 df_w9_w10  <- read_rds("data/df_w9_w10.rds")|>
   mutate(citysize = as.numeric(citysize))
 
@@ -2980,6 +2997,64 @@ write_fig(
 ## G Engagement with platform
 
 ## H Further analysis
+
+
+### Robustness: excluding videos shown in both waves
+
+This analysis re-estimates the long-term treatment effects after excluding
+videos shown to the same respondent in both waves.
+
+```{r}
+#| label: analysis-main-results-no-repeated-videos
+#| message: false
+#| warning: false
+#| fig-width: 10
+#| fig-height: 5
+
+D <- "wave_10"
+df <- df_w10_no_repeated_videos
+
+for (OG in names(l_outcomegroups)) {
+  estimates <- lapply(l_outcomegroups[[OG]], function(Y)
+    lapply(unique(df$strategy_2), function(S) {
+      df_sub <- df |> filter(strategy_2 == S)
+      run_feols_tidy(
+        df = df_sub,
+        outcome_var = v_outcomes[Y],
+        extra_cols = list(outcome = Y, strategy = S)
+      )
+    }) |>
+      bind_rows()
+  ) |>
+    bind_rows() |>
+    mutate(
+      outcome = factor(outcome, levels = unique(outcome)),
+      wave = D,
+      wave_label = wave_label_for(D),
+      outcome_group = OG,
+      figure_id = "f_I"
+    )
+
+  plot <- estimates |>
+    gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
+    facet_grid(cols = vars(outcome)) +
+    labs(title = unique(estimates$wave_label))
+
+  write_fig(
+    stem = paste0(
+      fig_stem("f_I", OG, D),
+      "_no_repeated_videos"
+    ),
+    estimates = estimates,
+    plot = plot,
+    width = 7,
+    height = 3
+  )
+}
+
+```
+
+
 
 ### By strategy
 
