@@ -31,7 +31,9 @@ pacman::p_load(tidyverse, haven, knitr)
 # This file requires access to full data
 data_path <- "../../../../HU/Covid Vaccine Allocation/4_data/"
 
-# 
+# dataset contains every possible combination of respondent x video 
+# respondents: 3,634 who participated in both waves
+# video: 400 possible videos for each respondent
 repeated_videos_w10 <- read_dta(
    paste0(
     data_path,
@@ -136,7 +138,6 @@ This prepares the short-term (wave_9) and long-term (wave_10) datasets a single 
 ```{r}
 #| label: dataprep
 prepare_data(df_09v)  |> write_rds("data/wave_9.rds")
-#prepare_data(df_10v) |> write_rds("data/wave_10.rds")
 
 
 # NEW:
@@ -148,12 +149,10 @@ n_before_merge <- nrow(wave_10_prepared)
 duplicates_repeated_data <- repeated_videos_w10 |>
   count(ID, video, name = "n") |>
   filter(n > 1)
-duplicates_repeated_data
 
 duplicates_wave10 <- wave_10_prepared |>
   count(ID, video, name = "n") |>
   filter(n > 1)
-duplicates_wave10
 
 repeated_videos_w10 %>% count(shown_both_waves, sort = TRUE)
 
@@ -165,16 +164,14 @@ wave_10_prepared <- wave_10_prepared |>
     relationship = "one-to-one"
   )
 
-
-# Check that the merge did not duplicate observations
-stopifnot(nrow(wave_10_prepared) == n_before_merge)
-# Check that every wave-10 analysis row matched Ferdi's data
+# Ensure every analysis row matched Ferdi's data
 stopifnot(!anyNA(wave_10_prepared$shown_both_waves))
 
-# Inspect the resulting indicator
 wave_10_prepared |>
-  count(shown_both_waves, sort = TRUE) |>
-  print()
+  count(shown_both_waves, sort = TRUE)
+
+wave_10_prepared |>
+  write_rds("data/wave_10.rds")
 
 ```
 
