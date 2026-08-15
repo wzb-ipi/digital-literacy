@@ -29,7 +29,27 @@ pacman::p_load(tidyverse, haven, knitr)
 #| label: data-paths-and-labels
 
 # This file requires access to full data
-data_path <- "../../1_Projects/Covid Vaccine Allocation/4_data/"
+data_path <- "../../../../HU/Covid Vaccine Allocation/4_data/"
+
+# 
+repeated_videos_w10 <- read_dta(
+   paste0(
+    data_path,
+  "wave_10/_temp/shown_videos_w9w10_-_LONG.dta"),
+  col_select = c(
+    ID_W9,
+    video,
+    both_viewed_watchtime_video_
+  )
+) |>
+  transmute(
+    ID = sprintf("%.0f", ID_W9),
+    video = as.numeric(video),
+    shown_both_waves = as.integer(
+      both_viewed_watchtime_video_
+    )
+  )
+
 
 # Large video files
 df_09v <- read_dta(
@@ -116,7 +136,46 @@ This prepares the short-term (wave_9) and long-term (wave_10) datasets a single 
 ```{r}
 #| label: dataprep
 prepare_data(df_09v)  |> write_rds("data/wave_9.rds")
-prepare_data(df_10v) |> write_rds("data/wave_10.rds")
+#prepare_data(df_10v) |> write_rds("data/wave_10.rds")
+
+
+# NEW:
+wave_10_prepared <- prepare_data(df_10v)
+
+n_before_merge <- nrow(wave_10_prepared)
+
+# check duplicates 
+duplicates_repeated_data <- repeated_videos_w10 |>
+  count(ID, video, name = "n") |>
+  filter(n > 1)
+duplicates_repeated_data
+
+duplicates_wave10 <- wave_10_prepared |>
+  count(ID, video, name = "n") |>
+  filter(n > 1)
+duplicates_wave10
+
+repeated_videos_w10 %>% count(shown_both_waves, sort = TRUE)
+
+# merge 1:1
+wave_10_prepared <- wave_10_prepared |>
+  left_join(
+    repeated_videos_w10,
+    by = c("ID", "video"),
+    relationship = "one-to-one"
+  )
+
+
+# Check that the merge did not duplicate observations
+stopifnot(nrow(wave_10_prepared) == n_before_merge)
+# Check that every wave-10 analysis row matched Ferdi's data
+stopifnot(!anyNA(wave_10_prepared$shown_both_waves))
+
+# Inspect the resulting indicator
+wave_10_prepared |>
+  count(shown_both_waves, sort = TRUE) |>
+  print()
+
 ```
 
 
