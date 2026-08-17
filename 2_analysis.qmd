@@ -3027,14 +3027,17 @@ for (OG in names(l_outcomegroups)) {
       bind_rows()
   ) |>
     bind_rows() |>
-    mutate(
-      outcome = factor(outcome, levels = unique(outcome)),
-      wave = D,
-      wave_label = wave_label_for(D),
-      outcome_group = OG,
-      figure_id = "f_I"
-    )
-
+  mutate(
+  outcome = factor(outcome, levels = unique(outcome)),
+  strategy = factor(
+    as.character(strategy),
+    levels = rev(strategy_order_article)
+  ),
+  wave = D,
+  wave_label = wave_label_for(D),
+  outcome_group = OG,
+  figure_id = "f_I"
+  )
   plot <- estimates |>
     gg_coefplot(aes(y = strategy, x = estimate, color = strategy)) +
     facet_grid(cols = vars(outcome)) +
