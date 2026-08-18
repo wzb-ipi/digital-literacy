@@ -14,7 +14,9 @@ execute:
   message: false
 ---
 
-Additional analyses organized by the paper / SI section they speak to. Displays whose information is already in manuscript Figures 1–3 or SI Tables S1–S15 / Figures S1–S16 are omitted. PDFs, tables, and estimate objects are written to `additional/` (`figs`, `tabs`, `ests`, `ggs`), not to the manuscript folders.
+Additional analyses organized by the paper / SI section they speak to. 
+
+Output is written to `additional/` (`figs`, `tabs`, `ests`, `ggs`).
 
 # Setup
 
@@ -65,20 +67,11 @@ gg_dir  <- file.path(out_root, "ggs")
 fig_dir <- file.path(out_root, "figs")
 tab_dir <- file.path(out_root, "tabs")
 
-# Filename suffix by wave
-wave_suffix <- c(
-  wave_9 = "_shortterm",
-  wave_10 = "_longterm"
+strategy_order_article <- c(
+  "political\n(emotional)",
+  "political\n(neutral)",
+  "entertainment"
 )
-
-wave_label_for <- function(wave) {
-  if (wave == "wave_9") "Short-term Effects" else "Long-term Effects"
-}
-
-# Stem matches existing PDF names, e.g. f_I_shortterm, f_I_other_longterm
-fig_stem <- function(prefix, outcome_group, wave) {
-  paste0(prefix, str_replace(outcome_group, "main", ""), wave_suffix[[wave]])
-}
 
 # Outcomes and groups
 v_outcomes <- c(
@@ -116,550 +109,40 @@ texreg_stars <- c(0.01, 0.05, 0.10)
 
 ```{r}
 #| label: analysis-helper-functions
-# Plot helpers
 
-gg_coefplot <- function(data, aes) {
-  ggplot(data, aes) +
-    geom_vline(xintercept = 0, linetype = "dashed") +
-    geom_point() +
-    geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-    theme_tiktok() +
-    scale_color_tiktok()
-}
-
-# Theme and palette
-
-theme_tiktok <- function() {
-  theme_bw() +
-    theme(
-      legend.position = "none",
-      axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-    )
-}
-
-scale_color_tiktok <- function() {
-  scale_color_discrete()
-}
-
-
-# Party identification transition helpers
-build_pid_lodes <- function(df_input) {
-  labs <- party_names
-
-  from <- df_input |>
-    select(id_w9, starts_with("party_id_w9")) |>
-    pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
-    filter(val == 1) |>
-    transmute(
-      id_w9,
-      from_party = recode(
-        sub("^party_id_w9_(.*)$", "\\1", var),
-        !!!labs
-      )
-    )
-
-  to <- df_input |>
-    select(id_w9, starts_with("party_id_w10")) |>
-    pivot_longer(-id_w9, names_to = "var", values_to = "val") |>
-    filter(val == 1) |>
-    transmute(
-      id_w9,
-      to_party = recode(
-        sub("^party_id_w10_(.*)$", "\\1", var),
-        !!!labs
-      )
-    )
-
-  transitions_indiv <- inner_join(from, to, by = "id_w9")
-
-  transitions <- transitions_indiv |>
-    count(`Wave 9` = from_party, `Wave 10` = to_party, name = "Freq")
-
-  totN <- sum(transitions$Freq)
-
-  share_w9 <- transitions |>
-    group_by(`Wave 9`) |>
-    summarise(s9 = sum(Freq) / totN, .groups = "drop")
-
-  share_w10 <- transitions |>
-    group_by(`Wave 10`) |>
-    summarise(s10 = sum(Freq) / totN, .groups = "drop")
-
-  net_pp <- share_w10 |>
-    left_join(share_w9, by = c("Wave 10" = "Wave 9")) |>
-    mutate(
-      delta_pp = (s10 - s9) * 100,
-      label_right = sprintf("%s\n(%+0.2f pp)", `Wave 10`, delta_pp)
-    ) |>
-    select(`Wave 10`, label_right)
-
-  lodes <- transitions |>
-    mutate(Share = Freq / totN) |>
-    to_lodes_form(axes = 1:2, id = "alluvium") |>
-    mutate(
-      x = factor(x, levels = c("Wave 9", "Wave 10")),
-      stratum_lab = ifelse(
-        x == "Wave 10",
-        net_pp$label_right[match(stratum, net_pp$`Wave 10`)],
-        as.character(stratum)
-      )
-    )
-
-  party_cols <- c(
-    "CDU/CSU" = "#000000",
-    "SPD" = "#E3000F",
-    "Grüne" = "#0DB02B",
-    "FDP" = "#FFED00",
-    "Linke" = "#E2382A",
-    "AfD" = "#009EE0",
-    "BSW" = "#18A19A"
-  )
-
-  list(lodes = lodes, party_cols = party_cols)
-}
-
-plot_pid_alluvial <- function(lodes, party_cols, title_text) {
-  ggplot(
-    lodes,
-    aes(
-      x = x,
-      stratum = stratum,
-      alluvium = alluvium,
-      y = Share,
-      fill = stratum,
-      label = stratum_lab
-    )
-  ) +
-    geom_alluvium(alpha = 0.7, color = NA, knot.pos = 0.4) +
-    geom_stratum(fill = "white", color = "black", size = 0.3) +
-    geom_text(stat = "stratum", size = 4) +
-    scale_fill_manual(values = party_cols, guide = "none") +
-    scale_x_discrete(
-      labels = c("Wave 9", "Wave 10"),
-      expand = c(0.05, 0.05)
-    ) +
-    labs(
-      x = NULL,
-      y = NULL,
-      title = title_text
-    ) +
-    theme_minimal(base_size = 12) +
-    theme(
-      plot.title = element_text(hjust = 0.5, face = "bold"),
-      panel.grid = element_blank(),
-      axis.text.y = element_blank()
-    )
-}
-
-# Build correlation data for a single wave and treatment status
-build_cor_df <- function(df, wave_label) {
-  groups <- list(
-    list(treat = "Treated", data = df |> filter(workshop_Treatment == 1)),
-    list(treat = "Control", data = df |> filter(workshop_Treatment == 0))
-  )
-  purrr::map_df(groups, function(x) {
-    df_sel <- x$data |> select(all_of(v_outcomes))
-    colnames(df_sel) <- names(v_outcomes)
-    cmat <- cor(df_sel, use = "pairwise.complete.obs")
-    as.data.frame(as.table(cmat)) |>
-      rename(var1 = Var1, var2 = Var2, r = Freq) |>
-      mutate(treat = x$treat, wave = wave_label)
-  })
-}
-
-
-# Main anlaysis function clusters by ID and fixed effects by video
-# Run feols by group and return tidied coefficients with metadata
-run_feols_tidy <- function(df, outcome_var, extra_cols = list()) {
-  feols(
-    as.formula(paste(outcome_var, "~ workshop_Treatment | video")),
-    data = df,
-    cluster = ~ID
-  ) |>
-    tidy(conf.int = TRUE) |>
-    mutate(!!!extra_cols)
-}
-
-# Same ATE without video FE (PAP reconciliation twin); still cluster by ID
-run_feols_tidy_nofe <- function(df, outcome_var, extra_cols = list()) {
-  feols(
-    as.formula(paste(outcome_var, "~ workshop_Treatment")),
-    data = df,
-    cluster = ~ID
-  ) |>
-    tidy(conf.int = TRUE) |>
-    filter(term == "workshop_Treatment") |>
-    mutate(!!!extra_cols)
-}
-
-# Strategy color for article Figs 1–2: emotional black; others grey
-strategy_color_values <- c(
-  "political\n(emotional)" = "black",
-  "political\n(neutral)" = "grey55",
-  "entertainment" = "grey55"
-)
-strategy_order_article <- c(
-  "political\n(emotional)",
-  "political\n(neutral)",
-  "entertainment"
-)
-
-# Lin (2013) party interactions with demeaned dummies, video FE, cluster ID.
-# Returns tidied bare ATE (party = "All parties") plus party-specific TEs.
-# party_levels = display names; party_code_map = named codes (names = display).
-# ref_party is omitted from the dummy set (collinearity); TE_ref recovered via contrasts.
-fit_lin_party_feols <- function(df, outcome_var, party_levels, party_code_map = NULL,
-                                ref_party = party_levels[length(party_levels)]) {
-  if (is.null(party_code_map)) {
-    party_code_map <- setNames(make.names(party_levels), party_levels)
+replace_file <- function(from, to) {
+  if (file.exists(to) && unlink(to) != 0) {
+    file.rename(to, paste0(to, ".old"))
   }
-  interact_parties <- setdiff(party_levels, ref_party)
-  stopifnot(length(interact_parties) >= 1)
-
-  df_m <- df |>
-    filter(!is.na(.data[[outcome_var]]), !is.na(party), party %in% party_levels) |>
-    mutate(party = factor(party, levels = party_levels))
-
-  # Raw exclusive dummies and sample shares (pre-demean); columns use stable codes
-  pi <- setNames(numeric(length(interact_parties)), interact_parties)
-  for (p in interact_parties) {
-    raw <- as.integer(df_m$party == p)
-    pi[p] <- mean(raw, na.rm = TRUE)
-    df_m[[paste0("pdm_", party_code_map[[p]])]] <- raw - pi[p]
+  if (!isTRUE(file.rename(from, to))) {
+    file.copy(from, to, overwrite = TRUE)
+    unlink(from)
   }
-
-  pdm_terms <- paste0("pdm_", party_code_map[interact_parties])
-  rhs <- paste0(
-    "workshop_Treatment * (",
-    paste(pdm_terms, collapse = " + "),
-    ")"
-  )
-  fit <- feols(
-    as.formula(paste(outcome_var, "~", rhs, "| video")),
-    data = df_m,
-    cluster = ~ID
-  )
-
-  b <- coef(fit)
-  V <- vcov(fit)
-  treat <- "workshop_Treatment"
-  if (!treat %in% names(b)) {
-    stop("Treatment coefficient missing from Lin fit for ", outcome_var)
-  }
-
-  # Linear combination c'b with SE sqrt(c'Vc)
-  lincom <- function(cvec) {
-    cvec <- cvec[names(b)]
-    cvec[is.na(cvec)] <- 0
-    est <- sum(cvec * b)
-    se <- sqrt(as.numeric(t(cvec) %*% V %*% cvec))
-    tibble(
-      estimate = est,
-      std.error = se,
-      conf.low = est - 1.96 * se,
-      conf.high = est + 1.96 * se,
-      p.value = 2 * pnorm(-abs(est / se))
-    )
-  }
-
-  int_name <- function(p) paste0(treat, ":pdm_", party_code_map[[p]])
-
-  # Bare treatment = Lin ATE under demeaning
-  c_ate <- setNames(rep(0, length(b)), names(b))
-  c_ate[treat] <- 1
-  out_ate <- lincom(c_ate) |>
-    mutate(term = treat, party = "All parties")
-
-  # Party-specific TE = β + δ'(d_p - π)
-  out_parties <- lapply(party_levels, function(p) {
-    cvec <- setNames(rep(0, length(b)), names(b))
-    cvec[treat] <- 1
-    for (j in interact_parties) {
-      nm <- int_name(j)
-      if (!nm %in% names(b)) next
-      if (identical(p, j)) {
-        cvec[nm] <- 1 - pi[j]
-      } else {
-        cvec[nm] <- -pi[j]
-      }
-    }
-    lincom(cvec) |>
-      mutate(term = paste0("TE_", party_code_map[[p]]), party = p)
-  }) |>
-    bind_rows()
-
-  bind_rows(out_ate, out_parties) |>
-    mutate(outcome_var = outcome_var)
 }
 
-# Persist estimates, ggplot object, and PDF under matching stems
-ensure_fig_dirs <- function() {
-  dir.create(out_root, showWarnings = FALSE)
-  dir.create(est_dir, showWarnings = FALSE, recursive = TRUE)
-  dir.create(gg_dir, showWarnings = FALSE, recursive = TRUE)
-  dir.create(fig_dir, showWarnings = FALSE, recursive = TRUE)
-  dir.create(tab_dir, showWarnings = FALSE, recursive = TRUE)
-}
-
-# Dropbox / multi-session Windows often locks *.rds mid-write ("cannot open the connection").
-# Write to a same-directory temp file, then replace (rename-aside when target exists);
-# retry; name the path on failure.
-safe_write_rds <- function(object, path, max_tries = 5, sleep_sec = 0.5) {
-  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
-  abs_path <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  tmp <- file.path(
-    dirname(path),
-    paste0(".", basename(path), ".", Sys.getpid(), ".tmp")
-  )
-  bak <- paste0(path, ".", Sys.getpid(), ".bak")
-  on.exit({
-    if (file.exists(tmp)) unlink(tmp, force = TRUE)
-    if (file.exists(bak)) unlink(bak, force = TRUE)
-  }, add = TRUE)
-
-  replace_with_tmp <- function() {
-    if (!file.exists(tmp)) {
-      stop("temp RDS missing after write_rds", call. = FALSE)
-    }
-    if (file.exists(path)) {
-      # Prefer rename-aside then move: Dropbox often blocks overwrite while
-      # still allowing rename (same pattern as safe_ggsave_pdf).
-      if (file.exists(bak)) unlink(bak, force = TRUE)
-      if (!isTRUE(file.rename(path, bak))) {
-        copied <- isTRUE(file.copy(tmp, path, overwrite = TRUE))
-        if (!copied) {
-          stop("could not rename RDS aside or overwrite it", call. = FALSE)
-        }
-        unlink(tmp, force = TRUE)
-        return(invisible(TRUE))
-      }
-      if (!isTRUE(file.rename(tmp, path))) {
-        file.rename(bak, path)
-        stop("could not move temp RDS into place after rename-aside", call. = FALSE)
-      }
-      unlink(bak, force = TRUE)
-    } else if (!isTRUE(file.rename(tmp, path))) {
-      if (!isTRUE(file.copy(tmp, path, overwrite = TRUE))) {
-        stop("file.rename and file.copy both failed for RDS", call. = FALSE)
-      }
-      unlink(tmp, force = TRUE)
-    }
-    invisible(TRUE)
-  }
-
-  last_msg <- NULL
-  for (i in seq_len(max_tries)) {
-    ok <- tryCatch({
-      if (file.exists(tmp)) unlink(tmp, force = TRUE)
-      write_rds(object, tmp)
-      replace_with_tmp()
-      TRUE
-    }, error = function(e) {
-      last_msg <<- conditionMessage(e)
-      if (file.exists(tmp)) unlink(tmp, force = TRUE)
-      Sys.sleep(sleep_sec * i)
-      FALSE
-    })
-    if (isTRUE(ok)) return(invisible(path))
-  }
-
-  stop(
-    sprintf(
-      paste0(
-        "Could not write RDS to '%s' after %d tries (%s). ",
-        "Usually a Dropbox sync lock or another RStudio/rsession holding the file. ",
-        "Pause Dropbox sync and close other R sessions, then re-render."
-      ),
-      abs_path, max_tries,
-      if (is.null(last_msg)) "unknown error" else last_msg
-    ),
-    call. = FALSE
-  )
-}
-
-# Table chunks previously saved full fixest lists (scores / residuals / FE vectors
-# → tens–hundreds of MB). Nothing in this qmd re-reads those RDS files (texreg
-# uses in-memory fits). Persist tidy/glance trees instead via safe_write_rds.
-slim_fixest_for_rds <- function(x) {
-  if (inherits(x, "fixest")) {
-    return(list(
-      tidy = broom::tidy(x, conf.int = TRUE),
-      glance = broom::glance(x),
-      coeftable = as.data.frame(coeftable(x)),
-      nobs = nobs(x),
-      formula = as.character(formula(x))
-    ))
-  }
-  if (is.list(x)) {
-    return(lapply(x, slim_fixest_for_rds))
-  }
-  x
-}
-
-write_tab_rds <- function(models, path) {
-  safe_write_rds(slim_fixest_for_rds(models), path)
-}
-
-# Same pattern for PDFs: ggsave opens the path with device(), which fails when a
-# viewer / Dropbox / another session holds the existing file. Write to a
-# same-directory temp PDF, then replace; on lock, rename the target aside first.
-safe_ggsave_pdf <- function(plot, path, device, width = NA, height = NA,
-                            max_tries = 5, sleep_sec = 0.5) {
-  dir.create(dirname(path), showWarnings = FALSE, recursive = TRUE)
-  abs_path <- normalizePath(path, winslash = "/", mustWork = FALSE)
-  tmp <- file.path(
-    dirname(path),
-    paste0(".", basename(path), ".", Sys.getpid(), ".tmp.pdf")
-  )
-  bak <- paste0(path, ".", Sys.getpid(), ".bak")
-  on.exit({
-    if (file.exists(tmp)) unlink(tmp, force = TRUE)
-    if (file.exists(bak)) unlink(bak, force = TRUE)
-  }, add = TRUE)
-
-  ggsave_to <- function(out, dev) {
-    save_args <- list(filename = out, plot = plot, device = dev)
-    if (!is.na(width)) save_args$width <- width
-    if (!is.na(height)) save_args$height <- height
-    do.call(ggsave, save_args)
-  }
-
-  replace_with_tmp <- function() {
-    if (!file.exists(tmp)) {
-      stop("temp PDF missing after ggsave", call. = FALSE)
-    }
-    if (file.exists(path)) {
-      # Prefer rename-aside then move: Dropbox / PDF viewers often block
-      # overwrite (file.copy / CreateFile) while still allowing rename.
-      if (file.exists(bak)) unlink(bak, force = TRUE)
-      if (!isTRUE(file.rename(path, bak))) {
-        # Fall back to overwrite copy if rename-aside fails
-        copied <- isTRUE(file.copy(tmp, path, overwrite = TRUE))
-        if (!copied) {
-          stop("could not rename PDF aside or overwrite it", call. = FALSE)
-        }
-        unlink(tmp, force = TRUE)
-        return(invisible(TRUE))
-      }
-      if (!isTRUE(file.rename(tmp, path))) {
-        # Restore prior PDF if move failed
-        file.rename(bak, path)
-        stop("could not move temp PDF into place after rename-aside", call. = FALSE)
-      }
-      unlink(bak, force = TRUE)
-    } else if (!isTRUE(file.rename(tmp, path))) {
-      if (!isTRUE(file.copy(tmp, path, overwrite = TRUE))) {
-        stop("file.rename and file.copy both failed for PDF", call. = FALSE)
-      }
-      unlink(tmp, force = TRUE)
-    }
-    invisible(TRUE)
-  }
-
-  last_msg <- NULL
-  use_device <- device
-  for (i in seq_len(max_tries)) {
-    ok <- tryCatch({
-      if (file.exists(tmp)) unlink(tmp, force = TRUE)
-      tryCatch(
-        ggsave_to(tmp, use_device),
-        error = function(e) {
-          # cairo_pdf can fail on some Windows setups; fall back once to pdf()
-          if (!identical(use_device, grDevices::pdf)) {
-            warning(
-              sprintf(
-                "ggsave failed for temp PDF near '%s' (%s); falling back to pdf().",
-                abs_path, conditionMessage(e)
-              ),
-              call. = FALSE
-            )
-            use_device <<- grDevices::pdf
-            ggsave_to(tmp, use_device)
-          } else {
-            stop(e)
-          }
-        }
-      )
-      # If destination still locked, clear it before replace
-      if (file.exists(path)) {
-        can_write <- tryCatch({
-          con <- file(path, open = "r+b")
-          close(con)
-          TRUE
-        }, error = function(e) FALSE)
-        if (!isTRUE(can_write)) {
-          if (file.exists(bak)) unlink(bak, force = TRUE)
-          if (!isTRUE(file.rename(path, bak))) {
-            unlink(path, force = TRUE)
-          }
-        }
-      }
-      replace_with_tmp()
-      TRUE
-    }, error = function(e) {
-      last_msg <<- conditionMessage(e)
-      if (file.exists(tmp)) unlink(tmp, force = TRUE)
-      Sys.sleep(sleep_sec * i)
-      FALSE
-    })
-    if (isTRUE(ok)) return(invisible(path))
-  }
-
-  stop(
-    sprintf(
-      paste0(
-        "Could not write PDF to '%s' after %d tries (%s). ",
-        "Usually a PDF viewer (PDF24/Acrobat/Sumatra/Edge), Dropbox sync, ",
-        "Explorer preview, or another R session holding the file. ",
-        "Close the PDF if open, pause Dropbox, then re-render."
-      ),
-      abs_path, max_tries,
-      if (is.null(last_msg)) "unknown error" else last_msg
-    ),
-    call. = FALSE
-  )
-}
-
-write_fig <- function(stem, estimates, plot, width = NA, height = NA,
-                      device = NULL) {
-  ensure_fig_dirs()
+write_fig <- function(stem, estimates, plot, width = NA, height = NA) {
   est_path <- file.path(est_dir, paste0(stem, ".rds"))
   gg_path  <- file.path(gg_dir, paste0(stem, ".rds"))
   pdf_path <- file.path(fig_dir, paste0(stem, ".pdf"))
-
-  safe_write_rds(estimates, est_path)
-
-  # ggplot RDS is for later reuse; do not abort the render if Dropbox locks it
-  tryCatch(
-    safe_write_rds(plot, gg_path),
-    error = function(e) {
-      warning(
-        sprintf(
-          "Skipping ggplot RDS for stem '%s' at '%s' (%s). Estimates + PDF still written.",
-          stem,
-          normalizePath(gg_path, winslash = "/", mustWork = FALSE),
-          conditionMessage(e)
-        ),
-        call. = FALSE
-      )
+  tmp_near <- function(path) file.path(dirname(path), paste0(".", basename(path), ".tmp"))
+  write_rds(estimates, tmp_near(est_path))
+  replace_file(tmp_near(est_path), est_path)
+  write_rds(plot, tmp_near(gg_path))
+  replace_file(tmp_near(gg_path), gg_path)
+  tmp_pdf <- tmp_near(pdf_path)
+  save_pdf <- function(dev) {
+    if (is.na(width) && is.na(height)) {
+      ggsave(tmp_pdf, plot, device = dev)
+    } else {
+      ggsave(tmp_pdf, plot, device = dev, width = width, height = height)
     }
-  )
-
-  # cairo_pdf preferred when available; fall back to pdf() on Windows/device failure
-  if (is.null(device)) {
-    device <- if (isTRUE(capabilities("cairo"))) grDevices::cairo_pdf else grDevices::pdf
   }
-  safe_ggsave_pdf(
-    plot = plot,
-    path = pdf_path,
-    device = device,
-    width = width,
-    height = height
-  )
+  tryCatch(save_pdf(cairo_pdf), error = function(e) save_pdf(pdf))
+  replace_file(tmp_pdf, pdf_path)
   print(plot)
-  invisible(plot)
 }
 ```
+
 
 
 # Data 
@@ -1353,7 +836,6 @@ if (isTRUE(RUN_FORESTS)) {
   )
 
   # Persist CATEs (and metadata needed for plotting) before graphing
-  ensure_fig_dirs()
   write_rds(cate_cor, file.path(est_dir, "causal_forest_cate_cor.rds"))
   write_rds(cf_estimates, cf_est_path)
 } else {
@@ -1895,9 +1377,26 @@ fit_afd_hetero <- function(df, outcome_name) {
   )
 }
 
+# Persist tidy/glance only; full fixest lists are tens of MB.
+tidy_fixest_tree <- function(x) {
+  if (inherits(x, "fixest")) {
+    list(tidy = broom::tidy(x, conf.int = TRUE), glance = broom::glance(x))
+  } else if (is.list(x)) {
+    lapply(x, tidy_fixest_tree)
+  } else {
+    x
+  }
+}
+
+write_est_rds <- function(object, path) {
+  tmp <- file.path(dirname(path), paste0(".", basename(path), ".tmp"))
+  write_rds(object, tmp)
+  replace_file(tmp, path)
+}
+
 write_afd_hetero_table <- function(models, outcome_name, caption, label) {
   stem <- paste0("tab_afd_video_hetero_", tolower(outcome_name))
-  write_tab_rds(models, file.path(est_dir, paste0(stem, ".rds")))
+  write_est_rds(tidy_fixest_tree(models), file.path(est_dir, paste0(stem, ".rds")))
   texreg::texreg(
     models,
     file = file.path(tab_dir, paste0(stem, ".tex")),
@@ -1925,7 +1424,10 @@ models_afd_het <- lapply(compare_outcomes, function(Y) {
 }) |>
   setNames(compare_outcomes)
 
-write_tab_rds(models_afd_het, file.path(est_dir, "tab_afd_video_hetero.rds"))
+write_est_rds(
+  tidy_fixest_tree(models_afd_het),
+  file.path(est_dir, "tab_afd_video_hetero.rds")
+)
 
 cat("\n### Like\n\n")
 write_afd_hetero_table(
@@ -1955,8 +1457,6 @@ Companion correlation tables (wave 10; within-arm wave 9 vs 10; person-average c
 
 ```{r}
 #| label: appendix-outcome-correlation-tables
-
-ensure_fig_dirs()
 
 oc_labs <- c("Like", "Share", "Bookmark", "Report", "Watch time", "Skip")
 oc_vars <- c(
