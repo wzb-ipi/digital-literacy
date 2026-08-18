@@ -9,3 +9,7 @@ ests/tab_compare_emotional_vs_entertainment*.rds
 ests/tab_compare_emotional_vs_neutral*.rds
 ests/tab_pap_h1a_engage_emotional.rds
 ests/tab_afd_video_3way_demeaned*.rds
+ests/tab_s7_emo_vs_ent_like.rds
+ests/tab_s8_emo_vs_ent_report.rds
+ests/tab_s10_afd_3way_short.rds
+ests/tab_s11_afd_3way_long.rds
