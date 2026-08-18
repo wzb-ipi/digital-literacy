@@ -3,7 +3,8 @@
 .RData
 .Ruserdata
 
-# Large estimation RDS artifacts (>100MB; keep working copies local)
+# Legacy full-fixest table RDS stems (were >100MB). qmd now writes slim tidy
+# trees via write_tab_rds(); keep ignore so old local copies are not re-added.
 ests/tab_compare_emotional_vs_entertainment*.rds
 ests/tab_compare_emotional_vs_neutral*.rds
 ests/tab_pap_h1a_engage_emotional.rds
