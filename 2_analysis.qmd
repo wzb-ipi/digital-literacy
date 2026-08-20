@@ -1771,99 +1771,6 @@ write_fig(
 )
 ```
 
-## fig_s15_outcome_ellipses
-
-```{r}
-#| label: fig-s15-analysis
-
-build_cor_df <- function(df, wave_label) {
-  bind_rows(lapply(c("Treated", "Control"), function(tr) {
-    df_sel <- df |>
-      filter(workshop_Treatment == if (tr == "Treated") 1 else 0) |>
-      select(all_of(v_outcomes))
-    colnames(df_sel) <- names(v_outcomes)
-    as.data.frame(as.table(cor(df_sel, use = "pairwise.complete.obs"))) |>
-      rename(var1 = Var1, var2 = Var2, r = Freq) |>
-      mutate(treat = tr, wave = wave_label)
-  }))
-}
-
-cor_long <- bind_rows(
-  build_cor_df(datasets$wave_9, "Short-term"),
-  build_cor_df(datasets$wave_10, "Long-term")
-) |>
-  mutate(sign = ifelse(r >= 0, "positive", "negative"))
-var_levels <- names(v_outcomes)
-cor_long <- cor_long |>
-  mutate(
-    x_idx = match(var2, var_levels),
-    y_idx = match(var1, var_levels)
-  )
-scale_in_cell <- 0.42
-ellipse_upper <- cor_long |>
-  filter(y_idx < x_idx) |>
-  group_by(wave, treat, var1, var2, r, x_idx, y_idx, sign) |>
-  do({
-    rr <- .$r[1]
-    S <- matrix(c(1, rr, rr, 1), nrow = 2)
-    e <- as.data.frame(ellipse::ellipse(S, centre = c(0, 0), level = 0.68, npoints = 80))
-    maxabs <- max(max(abs(e$x)), max(abs(e$y)), 1e-9)
-    e$x <- (e$x / maxabs) * scale_in_cell + .$x_idx[1]
-    e$y <- (e$y / maxabs) * scale_in_cell + .$y_idx[1]
-    e$wave <- .$wave[1]
-    e$treat <- .$treat[1]
-    e$var1 <- .$var1[1]
-    e$var2 <- .$var2[1]
-    e$sign <- .$sign[1]
-    e$r <- rr
-    e
-  }) |>
-  ungroup()
-label_lower <- cor_long |>
-  filter(y_idx > x_idx) |>
-  mutate(label = sprintf("%.2f", r))
-```
-
-```{r}
-#| label: fig-s15-format
-#| fig-width: 9
-#| fig-height: 7
-
-fig_s15 <- ggplot() +
-  geom_polygon(
-    data = ellipse_upper,
-    aes(x = x, y = y, group = interaction(wave, treat, var1, var2), fill = sign),
-    color = NA, alpha = 0.75
-  ) +
-  geom_text(
-    data = label_lower,
-    aes(x = x_idx, y = y_idx, label = label, color = sign),
-    size = 3
-  ) +
-  scale_fill_manual(values = c(positive = "#d73027", negative = "#4575b4"), name = "Sign") +
-  scale_color_manual(values = c(positive = "#d73027", negative = "#4575b4"), guide = "none") +
-  scale_x_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
-  scale_y_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
-  coord_fixed() +
-  labs(x = NULL, y = NULL) +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid = element_blank(),
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-  ) +
-  facet_grid(rows = vars(treat), cols = vars(wave))
-
-write_fig(
-  stem = "fig_s15_outcome_ellipses",
-  estimates = cor_long,
-  plot = fig_s15,
-  width = 9,
-  height = 7,
-  publish = si_pdf("fig_s15_outcome_ellipses")
-)
-```
-
 ## tab_s13_pap_h1a
 
 ```{r}
@@ -2156,5 +2063,100 @@ knitr::kable(
   align = c("l", "l", rep("c", length(oc_labs))),
   escape = FALSE,
   row.names = FALSE
+)
+```
+
+## fig_s15_outcome_ellipses
+
+Within-wave pairwise outcome correlations on emotionally manipulative political videos (`strategy_2 == strategies[1]`, same content-type restriction as `tab_s14`), treatment vs control, short-term (wave 9) and long-term (wave 10).
+
+```{r}
+#| label: fig-s15-analysis
+
+build_cor_df <- function(df, wave_label) {
+  bind_rows(lapply(c("Treated", "Control"), function(tr) {
+    df_sel <- df |>
+      filter(workshop_Treatment == if (tr == "Treated") 1 else 0) |>
+      select(all_of(v_outcomes))
+    colnames(df_sel) <- names(v_outcomes)
+    as.data.frame(as.table(cor(df_sel, use = "pairwise.complete.obs"))) |>
+      rename(var1 = Var1, var2 = Var2, r = Freq) |>
+      mutate(treat = tr, wave = wave_label)
+  }))
+}
+
+cor_long <- bind_rows(
+  build_cor_df(datasets$wave_9 |> filter(strategy_2 == strategies[1]), "Short-term"),
+  build_cor_df(datasets$wave_10 |> filter(strategy_2 == strategies[1]), "Long-term")
+) |>
+  mutate(sign = ifelse(r >= 0, "positive", "negative"))
+var_levels <- names(v_outcomes)
+cor_long <- cor_long |>
+  mutate(
+    x_idx = match(var2, var_levels),
+    y_idx = match(var1, var_levels)
+  )
+scale_in_cell <- 0.42
+ellipse_upper <- cor_long |>
+  filter(y_idx < x_idx) |>
+  group_by(wave, treat, var1, var2, r, x_idx, y_idx, sign) |>
+  do({
+    rr <- .$r[1]
+    S <- matrix(c(1, rr, rr, 1), nrow = 2)
+    e <- as.data.frame(ellipse::ellipse(S, centre = c(0, 0), level = 0.68, npoints = 80))
+    maxabs <- max(max(abs(e$x)), max(abs(e$y)), 1e-9)
+    e$x <- (e$x / maxabs) * scale_in_cell + .$x_idx[1]
+    e$y <- (e$y / maxabs) * scale_in_cell + .$y_idx[1]
+    e$wave <- .$wave[1]
+    e$treat <- .$treat[1]
+    e$var1 <- .$var1[1]
+    e$var2 <- .$var2[1]
+    e$sign <- .$sign[1]
+    e$r <- rr
+    e
+  }) |>
+  ungroup()
+label_lower <- cor_long |>
+  filter(y_idx > x_idx) |>
+  mutate(label = sprintf("%.2f", r))
+```
+
+```{r}
+#| label: fig-s15-format
+#| fig-width: 9
+#| fig-height: 7
+
+fig_s15 <- ggplot() +
+  geom_polygon(
+    data = ellipse_upper,
+    aes(x = x, y = y, group = interaction(wave, treat, var1, var2), fill = sign),
+    color = NA, alpha = 0.75
+  ) +
+  geom_text(
+    data = label_lower,
+    aes(x = x_idx, y = y_idx, label = label, color = sign),
+    size = 3
+  ) +
+  scale_fill_manual(values = c(positive = "#d73027", negative = "#4575b4"), name = "Sign") +
+  scale_color_manual(values = c(positive = "#d73027", negative = "#4575b4"), guide = "none") +
+  scale_x_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
+  scale_y_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
+  coord_fixed() +
+  labs(x = NULL, y = NULL) +
+  theme_bw() +
+  theme(
+    legend.position = "none",
+    panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+  ) +
+  facet_grid(rows = vars(treat), cols = vars(wave))
+
+write_fig(
+  stem = "fig_s15_outcome_ellipses",
+  estimates = cor_long,
+  plot = fig_s15,
+  width = 9,
+  height = 7,
+  publish = si_pdf("fig_s15_outcome_ellipses")
 )
 ```

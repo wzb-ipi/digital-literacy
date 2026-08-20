@@ -274,6 +274,172 @@ labels_en <- c(
 ```
 
 
+# Outcome levels by treatment (companion to Figs 1–2)
+
+Mean short- and long-term outcome **levels** by content type and treatment. Same layout as manuscript Figures 1–2 (like, report, share, bookmark, skip, watch time), but intercepts rather than ATEs. Video–respondent rows; all three content types. Cluster-robust 95% CIs by respondent. Not in the compiled SI.
+
+```{r}
+#| label: fig-outcome-levels-treat-ctrl
+#| fig-width: 12
+#| fig-height: 5.5
+
+treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
+outcome_order <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+pd <- position_dodge(width = 0.5)
+
+df_levels_row <- bind_rows(
+  datasets$wave_9 |> mutate(horizon = "Short-term"),
+  datasets$wave_10 |> mutate(horizon = "Long-term")
+) |>
+  transmute(
+    ID = as.character(ID),
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    strategy = factor(as.character(strategy_2), levels = rev(strategy_order_article)),
+    treatment = factor(
+      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+      levels = c("Control", "Treatment")
+    ),
+    Like = as.numeric(videoLikep1r),
+    Report = as.numeric(videoCommentTickedp1r),
+    Share = as.numeric(videoSharep1r),
+    Bookmark = as.numeric(videoBookmarkp1r),
+    Skip = as.numeric(skipped_video_),
+    `Watch Time` = as.numeric(watch_percentage_)
+  ) |>
+  pivot_longer(
+    cols = all_of(outcome_order),
+    names_to = "outcome",
+    values_to = "y"
+  ) |>
+  filter(is.finite(y), !is.na(strategy), !is.na(treatment))
+
+est_levels <- df_levels_row |>
+  mutate(outcome = factor(outcome, levels = outcome_order)) |>
+  group_by(horizon, outcome, strategy, treatment) |>
+  group_modify(~ {
+    m <- estimatr::lm_robust(y ~ 1, data = .x, clusters = ID)
+    broom::tidy(m, conf.int = TRUE) |>
+      dplyr::filter(term == "(Intercept)") |>
+      dplyr::transmute(
+        estimate,
+        std.error,
+        conf.low,
+        conf.high,
+        n = nrow(.x),
+        n_id = dplyr::n_distinct(.x$ID)
+      )
+  }) |>
+  ungroup()
+
+fig_outcome_levels_treat_ctrl <- est_levels |>
+  ggplot(aes(x = estimate, y = strategy, color = treatment)) +
+  geom_errorbar(
+    aes(xmin = conf.low, xmax = conf.high),
+    width = 0.2,
+    position = pd
+  ) +
+  geom_point(size = 1.8, position = pd) +
+  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  scale_color_manual(values = treat_cols, name = NULL) +
+  labs(
+    x = "Mean outcome level",
+    y = NULL,
+    title = "Outcome levels by content type and treatment",
+    subtitle = "Video–respondent rows; cluster-robust 95% CIs by respondent"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt"),
+    legend.position = "bottom"
+  )
+
+write_fig(
+  stem = "fig_outcome_levels_treat_ctrl",
+  estimates = est_levels,
+  plot = fig_outcome_levels_treat_ctrl,
+  width = 12,
+  height = 5.5
+)
+```
+
+# Treatment × type DiD (companion to outcome levels)
+
+How much larger the emotional-minus-other outcome gap is in treatment than in control. Same 2×6 layout as the levels figure. Each contrast uses its own pairwise sample (emotional + politically neutral; emotional + entertainment)—not a pooled three-type regression. Video FE; cluster-robust 95% CIs by respondent. Matches SI Tables S5–S8. Not in the compiled SI.
+
+```{r}
+#| label: fig-type-treat-did
+#| fig-width: 12
+#| fig-height: 5.5
+
+outcome_order <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
+contrast_specs <- list(
+  "Emotional vs neutral\n× treatment" = strategies,
+  "Emotional vs entertainment\n× treatment" = c(strategies[1], "entertainment")
+)
+horizon_data <- list(
+  "Short-term" = datasets$wave_9,
+  "Long-term" = datasets$wave_10
+)
+
+est_did <- bind_rows(lapply(names(horizon_data), function(h) {
+  bind_rows(lapply(names(contrast_specs), function(c_lab) {
+    df <- horizon_data[[h]] |>
+      filter(strategy_2 %in% contrast_specs[[c_lab]]) |>
+      mutate(
+        type_dummy = as.integer(strategy_2 == strategies[1]),
+        across(all_of(unname(v_outcomes)), \(z) as.numeric(haven::zap_labels(z)))
+      )
+    bind_rows(lapply(outcome_order, function(Y) {
+      feols(
+        as.formula(paste0(v_outcomes[[Y]], " ~ workshop_Treatment * type_dummy | video")),
+        data = df,
+        cluster = ~ID
+      ) |>
+        broom::tidy(conf.int = TRUE) |>
+        filter(term == "workshop_Treatment:type_dummy") |>
+        mutate(horizon = h, contrast = c_lab, outcome = Y)
+    }))
+  }))
+}))
+
+fig_type_treat_did <- est_did |>
+  mutate(
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    outcome = factor(outcome, levels = outcome_order),
+    contrast = factor(contrast, levels = rev(names(contrast_specs)))
+  ) |>
+  ggplot(aes(x = estimate, y = contrast)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  labs(
+    x = "Treatment × type interaction",
+    y = NULL,
+    title = "Treatment effect on the emotional-minus-other gap",
+    subtitle = "Pairwise samples; video FE; cluster-robust 95% CIs by respondent"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
+write_fig(
+  stem = "fig_type_treat_did",
+  estimates = est_did,
+  plot = fig_type_treat_did,
+  width = 12,
+  height = 5.5
+)
+```
+
 # Paper: secondary analyses (attention)
 
 Watch-time / liking / reporting / bookmarking associations. These were drafted for the SI relations section and are not in the compiled SI.
