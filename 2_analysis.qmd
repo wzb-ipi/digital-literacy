@@ -156,6 +156,24 @@ replace_file <- function(from, to) {
   }
 }
 
+# Persist tidy/glance only; full fixest lists store scores/residuals/FE vectors.
+tidy_fixest_tree <- function(x) {
+  if (inherits(x, "fixest")) {
+    list(tidy = broom::tidy(x, conf.int = TRUE), glance = broom::glance(x))
+  } else if (is.list(x)) {
+    lapply(x, tidy_fixest_tree)
+  } else {
+    x
+  }
+}
+
+write_tab_rds <- function(models, dest_stem) {
+  path <- file.path(est_dir, paste0(dest_stem, ".rds"))
+  tmp <- file.path(dirname(path), paste0(".", basename(path), ".tmp"))
+  write_rds(tidy_fixest_tree(models), tmp)
+  replace_file(tmp, path)
+}
+
 write_fig <- function(stem, estimates, plot, width = NA, height = NA, publish = NULL) {
   est_path <- file.path(est_dir, paste0(stem, ".rds"))
   gg_path  <- file.path(gg_dir, paste0(stem, ".rds"))
@@ -1000,7 +1018,7 @@ models_emo_ent <- lapply(compare_outcomes, function(Y) {
 #| results: 'asis'
 
 write_type_contrast <- function(models, dest_stem, caption, label) {
-  write_rds(models, file.path(est_dir, paste0(dest_stem, ".rds")))
+  write_tab_rds(models, dest_stem)
   texreg::texreg(
     models,
     file = file.path(tab_dir, paste0(dest_stem, ".tex")),
@@ -1379,7 +1397,7 @@ models_afd_3way_lt <- lapply(afd_3way_outcomes, function(Y) fit_afd_3way(df_afd_
 #| results: 'asis'
 
 write_afd_3way <- function(models, dest_stem, caption, label) {
-  write_rds(models, file.path(est_dir, paste0(dest_stem, ".rds")))
+  write_tab_rds(models, dest_stem)
   texreg::texreg(
     models,
     file = file.path(tab_dir, paste0(dest_stem, ".tex")),
