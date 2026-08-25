@@ -88,6 +88,9 @@ l_outcomegroups <- list(
   "_other" = c("Skip", "Watch Time")
 )
 
+# Paper-facing horizon labels (datasets remain wave_9 / wave_10)
+horizon_wave_levels <- c("Wave 1", "Wave 2")
+
 l_partisanship <- list(
   "Supporter: Yes" = 1,
   "Supporter: No" = 0,
@@ -277,9 +280,9 @@ labels_en <- c(
 # Paper: secondary analyses (attention)
 
 Watch-time / liking / reporting / bookmarking associations. These were drafted for the SI relations section and are not in the compiled SI.
-# Exploratory: Watch / bookmark vs liking / reporting (row-level; type × short/long)
+# Exploratory: Watch / bookmark vs liking / reporting (row-level; type × Wave 1/Wave 2)
 
-**Descriptive fits** (not causal). Unit = **video–respondent row**. Samples = short-term (`wave_9`) and long-term (`wave_10`) engagement, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—same span as pooled engagement ATEs (`f_I`). Facets: **rows** = video type; **cols** = Short-term | Long-term (no AfD split). Within each panel: treatment-colored fits (no dense row points) plus summary dots at (mean x, mean y) by arm. **(1)** Watch → like: `geom_smooth()`; x = `watch_percentage_`; y = `videoLikep1r`. **(2)** Watch → report: same structure; y = `videoCommentTickedp1r`. **(3)** Bookmark → like: conditional liking shares $P(\text{like}\mid\text{bookmark}\in\{0,1\})$ with cluster-robust 95\% CIs by `ID` (points + error bars + thin connector by treatment), plus darker mean dots at $(\bar b, \bar \ell)$; slight $x$ dodge on the conditional series only; x = `videoBookmarkp1r`. Stems: `fig_watch_like_short_long`, `fig_watch_report_short_long`, `fig_bookmark_like_short_long`. Replaces retired `fig_watch_like_all_afd`, `fig_watch_report_all_afd`, `fig_bookmark_like_all_afd`, `fig_bookmark_like_all_afd_longterm`, and earlier type×treatment / person-average versions.
+**Descriptive fits** (not causal). Unit = **video–respondent row**. Samples = Wave 1 (`wave_9`) and Wave 2 (`wave_10`) engagement, all three content types in `strategy_order_article` (emotional, neutral, entertainment)—same span as pooled engagement ATEs (`f_I`). Facets: **rows** = video type; **cols** = Wave 1 | Wave 2 (no AfD split). Within each panel: treatment-colored fits (no dense row points) plus summary dots at (mean x, mean y) by arm. **(1)** Watch → like: `geom_smooth()`; x = `watch_percentage_`; y = `videoLikep1r`. **(2)** Watch → report: same structure; y = `videoCommentTickedp1r`. **(3)** Bookmark → like: conditional liking shares $P(\text{like}\mid\text{bookmark}\in\{0,1\})$ with cluster-robust 95\% CIs by `ID` (points + error bars + thin connector by treatment), plus darker mean dots at $(\bar b, \bar \ell)$; slight $x$ dodge on the conditional series only; x = `videoBookmarkp1r`. Stems: `fig_watch_like_short_long`, `fig_watch_report_short_long`, `fig_bookmark_like_short_long`. Replaces retired `fig_watch_like_all_afd`, `fig_watch_report_all_afd`, `fig_bookmark_like_all_afd`, `fig_bookmark_like_all_afd_longterm`, and earlier type×treatment / person-average versions.
 
 ```{r}
 #| label: appendix-watch-like-short-long
@@ -288,7 +291,7 @@ Watch-time / liking / reporting / bookmarking associations. These were drafted f
 
 treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
 treat_cols_dark <- c(Control = "#2B4C6F", Treatment = "#A33A39")
-horizon_levels <- c("Short-term", "Long-term")
+horizon_levels <- horizon_wave_levels
 
 prep_watch_like <- function(dat, horizon) {
   dat |>
@@ -308,8 +311,8 @@ prep_watch_like <- function(dat, horizon) {
 }
 
 df_watch_like_row <- bind_rows(
-  prep_watch_like(datasets$wave_9, "Short-term"),
-  prep_watch_like(datasets$wave_10, "Long-term")
+  prep_watch_like(datasets$wave_9, "Wave 1"),
+  prep_watch_like(datasets$wave_10, "Wave 2")
 )
 
 df_watch_like_means <- df_watch_like_row |>
@@ -322,14 +325,14 @@ df_watch_like_means <- df_watch_like_row |>
   )
 
 cat(
-  "Watch time vs liking (row-level; short | long; no AfD panels)\n",
-  "  N rows (short): ", sum(df_watch_like_row$horizon == "Short-term"),
+  "Watch time vs liking (row-level; Wave 1 | Wave 2; no AfD panels)\n",
+  "  N rows (Wave 1): ", sum(df_watch_like_row$horizon == "Wave 1"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Short-term"]),
+  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Wave 1"]),
   ")\n",
-  "  N rows (long): ", sum(df_watch_like_row$horizon == "Long-term"),
+  "  N rows (Wave 2): ", sum(df_watch_like_row$horizon == "Wave 2"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Long-term"]),
+  dplyr::n_distinct(df_watch_like_row$ID[df_watch_like_row$horizon == "Wave 2"]),
   ")\n",
   sep = ""
 )
@@ -352,7 +355,7 @@ fig_watch_like_short_long <- ggplot(
   facet_grid(rows = vars(strategy), cols = vars(horizon)) +
   labs(
     title = "Watch time vs liking",
-    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); curves by treatment; dots = panel means",
+    subtitle = "Video–respondent rows; Wave 1 | Wave 2; curves by treatment; dots = panel means",
     x = "Watch time (share of video duration)",
     y = "Liking (0/1)"
   ) +
@@ -372,7 +375,7 @@ write_fig(
 )
 ```
 
-**Companion:** same type × short/long facet / treatment-color / mean-dot / `geom_smooth()` structure; **x** = watch time; **y** = reporting (`videoCommentTickedp1r`, 0/1).
+**Companion:** same type × Wave 1/Wave 2 facet / treatment-color / mean-dot / `geom_smooth()` structure; **x** = watch time; **y** = reporting (`videoCommentTickedp1r`, 0/1).
 
 ```{r}
 #| label: appendix-watch-report-short-long
@@ -397,8 +400,8 @@ prep_watch_report <- function(dat, horizon) {
 }
 
 df_watch_report_row <- bind_rows(
-  prep_watch_report(datasets$wave_9, "Short-term"),
-  prep_watch_report(datasets$wave_10, "Long-term")
+  prep_watch_report(datasets$wave_9, "Wave 1"),
+  prep_watch_report(datasets$wave_10, "Wave 2")
 )
 
 df_watch_report_means <- df_watch_report_row |>
@@ -411,14 +414,14 @@ df_watch_report_means <- df_watch_report_row |>
   )
 
 cat(
-  "Watch time vs reporting (row-level; short | long; no AfD panels)\n",
-  "  N rows (short): ", sum(df_watch_report_row$horizon == "Short-term"),
+  "Watch time vs reporting (row-level; Wave 1 | Wave 2; no AfD panels)\n",
+  "  N rows (Wave 1): ", sum(df_watch_report_row$horizon == "Wave 1"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Short-term"]),
+  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Wave 1"]),
   ")\n",
-  "  N rows (long): ", sum(df_watch_report_row$horizon == "Long-term"),
+  "  N rows (Wave 2): ", sum(df_watch_report_row$horizon == "Wave 2"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Long-term"]),
+  dplyr::n_distinct(df_watch_report_row$ID[df_watch_report_row$horizon == "Wave 2"]),
   ")\n",
   sep = ""
 )
@@ -441,7 +444,7 @@ fig_watch_report_short_long <- ggplot(
   facet_grid(rows = vars(strategy), cols = vars(horizon)) +
   labs(
     title = "Watch time vs reporting",
-    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); curves by treatment; dots = panel means",
+    subtitle = "Video–respondent rows; Wave 1 | Wave 2; curves by treatment; dots = panel means",
     x = "Watch time (share of video duration)",
     y = "Reporting (0/1)"
   ) +
@@ -461,7 +464,7 @@ write_fig(
 )
 ```
 
-**Companion:** same type × short/long facet and treatment colors; **x** = bookmarking (`videoBookmarkp1r`, 0/1), **y** = liking. For each panel × treatment × bookmark ∈ {0,1}, plot $P(\text{like}\mid\text{bookmark})$ from `estimatr::lm_robust(like ~ 1, clusters = ID)` with 95\% CIs; thin line joins bookmark 0→1 within arm (slight $x$ dodge by treatment). Darker mean dots at $(\bar b, \bar \ell)$ per arm, with a thin Control–Treatment segment. No hollow rings / cell-share circles. Short- and long-term are columns of one figure (no separate long-term-only export).
+**Companion:** same type × Wave 1/Wave 2 facet and treatment colors; **x** = bookmarking (`videoBookmarkp1r`, 0/1), **y** = liking. For each panel × treatment × bookmark ∈ {0,1}, plot $P(\text{like}\mid\text{bookmark})$ from `estimatr::lm_robust(like ~ 1, clusters = ID)` with 95\% CIs; thin line joins bookmark 0→1 within arm (slight $x$ dodge by treatment). Darker mean dots at $(\bar b, \bar \ell)$ per arm, with a thin Control–Treatment segment. No hollow rings / cell-share circles. Wave 1 and Wave 2 are columns of one figure (no separate Wave 2-only export).
 
 ```{r}
 #| label: appendix-bookmark-like-short-long
@@ -486,8 +489,8 @@ prep_bookmark_like <- function(dat, horizon) {
 }
 
 df_bookmark_like_row <- bind_rows(
-  prep_bookmark_like(datasets$wave_9, "Short-term"),
-  prep_bookmark_like(datasets$wave_10, "Long-term")
+  prep_bookmark_like(datasets$wave_9, "Wave 1"),
+  prep_bookmark_like(datasets$wave_10, "Wave 2")
 )
 
 # 2D means: (mean bookmark, mean like) by type × horizon × treatment
@@ -551,15 +554,15 @@ df_bookmark_like_cond <- df_bookmark_like_row |>
   )
 
 cat(
-  "Bookmarking vs liking (row-level; short | long; no AfD panels;\n",
+  "Bookmarking vs liking (row-level; Wave 1 | Wave 2; no AfD panels;\n",
   "  P(like|bookmark) with lm_robust clusters=ID + 2D means)\n",
-  "  N rows (short): ", sum(df_bookmark_like_row$horizon == "Short-term"),
+  "  N rows (Wave 1): ", sum(df_bookmark_like_row$horizon == "Wave 1"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Short-term"]),
+  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Wave 1"]),
   ")\n",
-  "  N rows (long): ", sum(df_bookmark_like_row$horizon == "Long-term"),
+  "  N rows (Wave 2): ", sum(df_bookmark_like_row$horizon == "Wave 2"),
   "  (unique IDs: ",
-  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Long-term"]),
+  dplyr::n_distinct(df_bookmark_like_row$ID[df_bookmark_like_row$horizon == "Wave 2"]),
   ")\n",
   sep = ""
 )
@@ -602,7 +605,7 @@ fig_bookmark_like_short_long <- ggplot() +
   facet_grid(rows = vars(strategy), cols = vars(horizon)) +
   labs(
     title = "Bookmarking vs liking",
-    subtitle = "Video–respondent rows; short-term (wave 9) | long-term (wave 10); P(like|bookmark) with cluster-ID 95% CIs; dots = panel means",
+    subtitle = "Video–respondent rows; Wave 1 | Wave 2; P(like|bookmark) with cluster-ID 95% CIs; dots = panel means",
     x = "Bookmarking (0/1)",
     y = "Liking (share / 0–1)"
   ) +
@@ -1055,7 +1058,7 @@ fig_cf_cate_corr <- ggplot() +
   labs(
     title = "Exploratory: OOB CATE correlations across outcomes",
     subtitle = paste0(
-      "Person×party units; emotional-political videos (wave_9); grf causal forests; ",
+      "Person×party units; emotional-political videos (Wave 1); grf causal forests; ",
       cf_cluster_lab
     ),
     x = "CATE (column outcome)",
@@ -1125,7 +1128,7 @@ fig_cf_bookmark_report <- ggplot(
   labs(
     title = "Exploratory: Bookmark vs Report OOB CATEs",
     subtitle = paste0(
-      "Person×party units; emotional-political wave_9; ",
+      "Person×party units; emotional-political Wave 1; ",
       cf_cluster_lab
     ),
     x = "Bookmark CATE",
@@ -1219,7 +1222,7 @@ fig_cf_watch_like_by_party <- ggplot(
   ) +
   labs(
     title = "Exploratory: Watch Time vs Like OOB CATEs by AfD vs Not AfD",
-    subtitle = "Rows = viewer; cols = sender; diagonal = same/same. Emotional-political wave_9; person×party units",
+    subtitle = "Rows = viewer; cols = sender; diagonal = same/same. Emotional-political Wave 1; person×party units",
     x = "Watch Time CATE",
     y = "Like CATE"
   ) +
@@ -1242,8 +1245,8 @@ write_fig(
 
 # SI: ecological validity of the intervention
 
-Comment classification by treatment (wave 9), not shown in SI Figure S2.
-**Wave-9 by treatment.** Same classification shares, restricted to respondents who appear in `df_w9_w10` (wave-9 id + workshop arm). Facets = Control | Treatment. Shares renormalize within each panel. Video-type facets are **not** available here: open-ended comments are one per respondent after a mixed feed (almost everyone sees emotional, neutral, and entertainment), not video-row text.
+Comment classification by treatment (Wave 1), not shown in SI Figure S2.
+**Wave 1 by treatment.** Same classification shares, restricted to respondents who appear in `df_w9_w10` (wave-9 id + workshop arm). Facets = Control | Treatment. Shares renormalize within each panel. Video-type facets are **not** available here: open-ended comments are one per respondent after a mixed feed (almost everyone sees emotional, neutral, and entertainment), not video-row text.
 
 ```{r}
 #| label: appendix-classification-comments-w9-by-treatment
@@ -1301,7 +1304,7 @@ comments_plot_w9_treat <- ggplot(
   scale_y_continuous(labels = percent_format(accuracy = 1)) +
   labs(
     x = NULL, y = "Share of comments",
-    title = "Comment classification by treatment (wave 9)"
+    title = "Comment classification by treatment (Wave 1)"
   ) +
   theme_bw(base_size = 12) +
   theme(
@@ -1324,7 +1327,7 @@ write_fig(
 Treatment x AfD-supporter models stratified by AfD vs other senders (distinct from SI Tables S10-S11).
 ## Treatment effects by AfD video
 
-Heterogeneity of short-term treatment effects by respondent AfD supporter status, with columns 2–3 stratified by whether the video's sending party is AfD. **Sample restriction:** emotionally manipulative political videos only — `strategy_2 == strategies[1]` i.e. `"political\n(emotional)"` in `wave_9` (not all political content; not entertainment). Same content type as the main emotional-political estimates. AfD supporter status is `AFD = 1{party_preference_afd == 1}` (respondent). AfD-video stratification uses `afd_video = 1{party == "AfD"}` (sending party).
+Heterogeneity of Wave 1 treatment effects by respondent AfD supporter status, with columns 2–3 stratified by whether the video's sending party is AfD. **Sample restriction:** emotionally manipulative political videos only — `strategy_2 == strategies[1]` i.e. `"political\n(emotional)"` in `wave_9` (not all political content; not entertainment). Same content type as the main emotional-political estimates. AfD supporter status is `AFD = 1{party_preference_afd == 1}` (respondent). AfD-video stratification uses `afd_video = 1{party == "AfD"}` (sending party).
 
 In every column we estimate the same interaction
 
@@ -1433,7 +1436,7 @@ cat("\n### Like\n\n")
 write_afd_hetero_table(
   models_afd_het$Like,
   "Like",
-  caption = "Treatment × AfD supporter, stratified by AfD video: Like (emotional political videos, short-term). Cols: All / AfD videos / other senders. Video FE; SEs clustered by respondent.",
+  caption = "Treatment × AfD supporter, stratified by AfD video: Like (emotional political videos, Wave 1). Cols: All / AfD videos / other senders. Video FE; SEs clustered by respondent.",
   label = "tab:afd_video_hetero_like"
 )
 
@@ -1441,16 +1444,18 @@ cat("\n### Report\n\n")
 write_afd_hetero_table(
   models_afd_het$Report,
   "Report",
-  caption = "Treatment × AfD supporter, stratified by AfD video: Report (emotional political videos, short-term). Cols: All / AfD videos / other senders. Video FE; SEs clustered by respondent.",
+  caption = "Treatment × AfD supporter, stratified by AfD video: Report (emotional political videos, Wave 1). Cols: All / AfD videos / other senders. Video FE; SEs clustered by respondent.",
   label = "tab:afd_video_hetero_report"
 )
 ```
 
 # SI: relations between outcomes
 
-## fig_s15_outcome_ellipses
+## Outcome–outcome ellipses (not in compiled SI)
 
-Within-wave pairwise outcome correlations on emotionally manipulative political videos (`strategy_2 == strategies[1]`, same content-type restriction as SI Table S14), treatment vs control, short-term (wave 9) and long-term (wave 10). Ellipse / numeric layout as previously in the SI analysis file. Nested Responses / Attention strips group the first four vs last two outcomes on both axes. Stem kept; not in the compiled SI.
+Formerly drafted as SI Figure S15 (`fig_s15_outcome_ellipses`); that SI figure is commented out. Compiled SI Figure S15 is `fig_s16_fig1_nofe` (no video FE), generated in `2_analysis.qmd`.
+
+Within-wave pairwise outcome correlations on emotionally manipulative political videos (`strategy_2 == strategies[1]`, same content-type restriction as SI Table S14), treatment vs control, Wave 1 (`wave_9`) and Wave 2 (`wave_10`). Ellipse / numeric layout as previously in the SI analysis file. Nested Engagement / Attention strips group the first four vs last two outcomes on both axes. Stem kept; not in the compiled SI.
 
 ```{r}
 #| label: fig-s15-analysis
@@ -1468,8 +1473,8 @@ build_cor_df <- function(df, wave_label) {
 }
 
 cor_long <- bind_rows(
-  build_cor_df(datasets$wave_9 |> filter(strategy_2 == strategies[1]), "Short-term"),
-  build_cor_df(datasets$wave_10 |> filter(strategy_2 == strategies[1]), "Long-term")
+  build_cor_df(datasets$wave_9 |> filter(strategy_2 == strategies[1]), "Wave 1"),
+  build_cor_df(datasets$wave_10 |> filter(strategy_2 == strategies[1]), "Wave 2")
 ) |>
   mutate(sign = ifelse(r >= 0, "positive", "negative"))
 var_levels <- names(v_outcomes)
@@ -1514,14 +1519,14 @@ add_outcome_supers <- function(df) {
   df |>
     mutate(
       treat = factor(treat, levels = c("Treated", "Control")),
-      wave = factor(wave, levels = c("Short-term", "Long-term")),
+      wave = factor(wave, levels = horizon_wave_levels),
       x_super = factor(
-        if_else(as.character(var2) %in% l_outcomegroups$main, "Responses", "Attention"),
-        levels = c("Responses", "Attention")
+        if_else(as.character(var2) %in% l_outcomegroups$main, "Engagement", "Attention"),
+        levels = c("Engagement", "Attention")
       ),
       y_super = factor(
-        if_else(as.character(var1) %in% l_outcomegroups$main, "Responses", "Attention"),
-        levels = c("Responses", "Attention")
+        if_else(as.character(var1) %in% l_outcomegroups$main, "Engagement", "Attention"),
+        levels = c("Engagement", "Attention")
       )
     )
 }
@@ -1564,7 +1569,7 @@ fig_s15 <- ggplot() +
     independent = "all"
   ) +
   scale_x_facet(
-    x_super == "Responses",
+    x_super == "Engagement",
     limits = range(resp_idx) + c(-0.5, 0.5),
     breaks = resp_idx,
     labels = var_levels[resp_idx],
@@ -1578,7 +1583,7 @@ fig_s15 <- ggplot() +
     expand = expansion(add = 0)
   ) +
   scale_y_facet(
-    y_super == "Responses",
+    y_super == "Engagement",
     limits = range(resp_idx) + c(-0.5, 0.5),
     breaks = resp_idx,
     labels = var_levels[resp_idx],
@@ -1602,12 +1607,12 @@ write_fig(
 )
 ```
 
-Companion correlation tables (wave 10; within-arm wave 9 vs 10; person-average cross-wave) not included in compiled SI Table S14.
+Companion correlation tables (Wave 2; within-arm Wave 1 vs Wave 2; person-average cross-wave) not included in compiled SI Table S14.
 **Outcome–outcome correlations (companion tables).** Descriptive pairwise correlations among the six engagement / attention outcomes — Like (`videoLikep1r`), Share (`videoSharep1r`), Bookmark (`videoBookmarkp1r`), Report (`videoCommentTickedp1r`), Watch time (`watch_percentage_`), Skip (`skipped_video_`) — on **emotionally manipulative political** videos only (`strategy_2 == strategies[1]`). Row-level tables use **video–respondent** rows (same unit as the watch/bookmark association figures above). Each off-diagonal cell stacks three numbers: the correlation in group A, the correlation in group B, and the difference $\Delta = r_A - r_B$, with stars on $\Delta$. Diagonals are blank (same-wave self-correlations) except Table 3. Correlations use pairwise-complete observations.
 
 **Clustered interaction test (stars `*/**/***`).** For each outcome pair, restrict to pairwise-complete rows in the estimation subsample for that contrast; standardize both outcomes in that subsample; then estimate `feols(Y_i ~ Y_j × group, cluster = ~ID)` where `group` is treatment (Tables 1, 1b, and 3) or wave (Tables 2a/2b). With both sides standardized, the slope approximates the correlation and the **interaction** is the group difference in slopes ($\approx\Delta$). Stars mark the interaction $p$: $^{***}p<0.01$; $^{**}p<0.05$; $^{*}p<0.10$. Table 3 has one row per ID already (clustering is redundant) but uses the same interaction test for consistency.
 
-**Tables.** (1) Row-level, short-term (`wave_9`) emotional rows only: $r_T$, $r_C$, $\Delta$ with clustered-interaction stars. (1b) Same contrast on long-term (`wave_10`) emotional rows only. (2a)/(2b) Row-level within treatment / control: $r_{w9}$, $r_{w10}$, $\Delta$ with the same stars. (3) Person-level: within each respondent, average each outcome over emotional-political videos in wave 9 and in wave 10; 6×6 with **rows = wave-9 outcomes**, **columns = wave-10 outcomes**; cells stack $r_T$, $r_C$, $\Delta$ with the same stars. Table 3 **includes** the diagonal (same outcome across waves).
+**Tables.** (1) Row-level, Wave 1 (`wave_9`) emotional rows only: $r_T$, $r_C$, $\Delta$ with clustered-interaction stars. (1b) Same contrast on Wave 2 (`wave_10`) emotional rows only. (2a)/(2b) Row-level within treatment / control: $r_{\mathrm{Wave\ 1}}$, $r_{\mathrm{Wave\ 2}}$, $\Delta$ with the same stars. (3) Person-level: within each respondent, average each outcome over emotional-political videos in Wave 1 and in Wave 2; 6×6 with **rows = Wave 1 outcomes**, **columns = Wave 2 outcomes**; cells stack $r_T$, $r_C$, $\Delta$ with the same stars. Table 3 **includes** the diagonal (same outcome across waves).
 
 ```{r}
 #| label: appendix-outcome-correlation-tables
@@ -1920,7 +1925,7 @@ make_wave_cells <- function(treat_val) {
     mutate(mod_w9 = as.integer(wave == "w9"))
   build_oc_cor_cells(
     d, oc_labs, oc_labs, "mod_w9",
-    blank_diag = TRUE, label_a = "Wave 9", label_b = "Wave 10"
+    blank_diag = TRUE, label_a = "Wave 1", label_b = "Wave 2"
   )
 }
 cells_w_t <- make_wave_cells(1)
@@ -1931,8 +1936,8 @@ mat_w_c <- cells_to_matrix(cells_w_c, oc_labs, oc_labs)
 # --- Table 3: person-average cross-wave, T vs C ------------------------------
 cells_person <- build_oc_cor_cells_crosswave(df_oc_person_w, oc_labs)
 # Display row/col names with wave tags
-oc_labs_w9 <- paste0(oc_labs, " (w9)")
-oc_labs_w10 <- paste0(oc_labs, " (w10)")
+oc_labs_w9 <- paste0(oc_labs, " (Wave 1)")
+oc_labs_w10 <- paste0(oc_labs, " (Wave 2)")
 mat_person <- matrix("", nrow = 6, ncol = 6, dimnames = list(oc_labs_w9, oc_labs_w10))
 for (k in seq_len(nrow(cells_person))) {
   i <- match(as.character(cells_person$row[k]), oc_labs)
@@ -2024,7 +2029,7 @@ write_oc_cor_tex(
   file.path(tab_dir, "tab_outcome_cors_treat_ctrl_w10.tex"),
   caption = paste(
     "Pairwise outcome correlations (emotionally manipulative political videos;",
-    "video--respondent rows, wave 10 only).",
+    "video--respondent rows, Wave 2 only).",
     "Cells: $r_{T}$, $r_{C}$, $\\Delta=r_{T}-r_{C}$ with clustered-interaction",
     "stars ($*/**/***$) on $\\Delta$.",
     "Diagonal blank."
@@ -2038,7 +2043,7 @@ write_oc_cor_tex(
   caption = paste(
     "Pairwise outcome correlations in the treatment arm (emotional-political;",
     "video--respondent rows).",
-    "Cells: $r_{w9}$, $r_{w10}$, $\\Delta$ with clustered wave-interaction",
+    "Cells: $r_{\\mathrm{Wave\\ 1}}$, $r_{\\mathrm{Wave\\ 2}}$, $\\Delta$ with clustered wave-interaction",
     "stars ($*/**/***$) on $\\Delta$.",
     "Diagonal blank."
   ),
@@ -2051,7 +2056,7 @@ write_oc_cor_tex(
   caption = paste(
     "Pairwise outcome correlations in the control arm (emotional-political;",
     "video--respondent rows).",
-    "Cells: $r_{w9}$, $r_{w10}$, $\\Delta$ with clustered wave-interaction",
+    "Cells: $r_{\\mathrm{Wave\\ 1}}$, $r_{\\mathrm{Wave\\ 2}}$, $\\Delta$ with clustered wave-interaction",
     "stars ($*/**/***$) on $\\Delta$.",
     "Diagonal blank."
   ),
@@ -2063,7 +2068,7 @@ write_oc_cor_tex(
   file.path(tab_dir, "tab_outcome_cors_person_w9_w10.tex"),
   caption = paste(
     "Cross-wave correlations of person-average outcomes on emotional-political videos.",
-    "Rows = wave-9 averages; columns = wave-10 averages.",
+    "Rows = Wave 1 averages; columns = Wave 2 averages.",
     "Cells: $r_{T}$, $r_{C}$, $\\Delta$ with clustered treatment-interaction",
     "stars ($*/**/***$) on $\\Delta$.",
     "Diagonal included (same outcome across waves)."
@@ -2105,18 +2110,18 @@ kable_oc <- function(mat, caption) {
 
 kable_oc(
   mat_tc_w10,
-  "Table 1b: Outcome correlations — treatment vs control (emotional; row-level; wave 10 only). Stack: r_T, r_C, Δ*."
+  "Table 1b: Outcome correlations — treatment vs control (emotional; row-level; Wave 2 only). Stack: r_T, r_C, Δ*."
 )
 kable_oc(
   mat_w_t,
-  "Table 2a: Outcome correlations — wave 9 vs wave 10 (treatment only; emotional; row-level). Stack: r_w9, r_w10, Δ*."
+  "Table 2a: Outcome correlations — Wave 1 vs Wave 2 (treatment only; emotional; row-level). Stack: r (Wave 1), r (Wave 2), Δ*."
 )
 kable_oc(
   mat_w_c,
-  "Table 2b: Outcome correlations — wave 9 vs wave 10 (control only; emotional; row-level). Stack: r_w9, r_w10, Δ*."
+  "Table 2b: Outcome correlations — Wave 1 vs Wave 2 (control only; emotional; row-level). Stack: r (Wave 1), r (Wave 2), Δ*."
 )
 kable_oc(
   mat_person,
-  "Table 3: Person-average cross-wave correlations (emotional). Rows w9, cols w10. Stack: r_T, r_C, Δ*."
+  "Table 3: Person-average cross-wave correlations (emotional). Rows Wave 1, cols Wave 2. Stack: r_T, r_C, Δ*."
 )
 ```
