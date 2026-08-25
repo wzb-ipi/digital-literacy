@@ -1,6 +1,6 @@
 ---
 title: "Digital literacy: paper and SI analyses"
-subtitle: Replication code for manuscript figures and SI Tables S3–S14 / Figures S2–S16
+subtitle: Replication code for manuscript figures and SI Tables S3–S14 / Figures S2–S15
 author: Kristina Aleksandrovna Pedersen, Ferdinand Geissler, Felix Hartmann, Johannes Giesecke, Macartan Humphreys, Heike Klüver
 format:
   html:
@@ -8,13 +8,33 @@ format:
     embed-resources: true
     code-fold: true
     toc: true
+    include-in-header:
+      text: |
+        <style>
+        figcaption .figure-number, caption .table-number { display: none; }
+        </style>
+        <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          function stripAutoNum(el) {
+            var html = el.innerHTML
+              .replace(/^(Figure|Table)\s+\d+\s*:\s*/i, "")
+              .replace(/^(\s|&nbsp;|\u00a0)*\d+(\s|&nbsp;|\u00a0)+(?=(Fig\.|Table ))/i, "");
+            el.innerHTML = html;
+          }
+          document.querySelectorAll("figcaption, caption").forEach(stripAutoNum);
+        });
+        </script>
+crossref:
+  fig-title: ""
+  tbl-title: ""
+  title-delim: ""
 execute:
   echo: true
   warning: true
   message: false
 ---
 
-Not generated here (static SI inputs): **Table S1** video descriptives; **Table S2** scraped handles; **Figure S1** example-video PNG; workshop/interface screenshots; **Table S15** PAP–manuscript reconciliation (inline in `PNAS_SI_revised.tex`).
+Not generated here (static SI inputs): **Table S1** video descriptives; **Table S2** scraped handles; **Fig. S1** example-video PNG; workshop/interface screenshots; **Table S15** PAP–manuscript reconciliation (inline in `PNAS_SI_revised.tex`). Compiled SI figure numbers follow TeX captions; PDF stems can differ (Fig. S4 is `fig_s3_by_strategy`, Fig. S5 is `fig_s4_type_treat_did`, Fig. S15 is `fig_s16_fig1_nofe`).
 
 # Setup
 
@@ -68,6 +88,9 @@ l_outcomegroups <- list(
   main = c("Like", "Report", "Share", "Bookmark"),
   "_other" = c("Skip", "Watch Time")
 )
+
+# Paper-facing horizon labels (datasets remain wave_9 / wave_10)
+horizon_wave_levels <- c("Wave 1", "Wave 2")
 
 l_partisanship <- list(
   "Supporter: Yes" = 1,
@@ -123,10 +146,38 @@ estimate_pooled_ates <- function(df, outcomes) {
   }) |> bind_rows()
 }
 
+outcome_super <- function(outcome) {
+  factor(
+    if_else(as.character(outcome) %in% l_outcomegroups$main, "Engagement", "Attention"),
+    levels = c("Engagement", "Attention")
+  )
+}
+
+# 6-column figures: Like/Report/Share/Bookmark/Skip share one x-range
+# (estimates + CIs); Watch Time uses its own. Unnamed list matches nested
+# columns left-to-right in `outcomes` order.
+shared_binary_x_scales <- function(df, outcomes) {
+  watch <- "Watch Time"
+  shared <- setdiff(as.character(outcomes), watch)
+  rng <- function(ok) {
+    dat <- df |> filter(as.character(outcome) %in% ok)
+    vals <- dat$estimate
+    if ("conf.low" %in% names(dat)) {
+      vals <- c(vals, dat$conf.low, dat$conf.high)
+    }
+    range(vals, na.rm = TRUE)
+  }
+  shared_lim <- rng(shared)
+  watch_lim <- rng(watch)
+  lapply(as.character(outcomes), function(y) {
+    scale_x_continuous(limits = if (identical(y, watch)) watch_lim else shared_lim)
+  })
+}
+
 plot_pooled_horizon <- function(estimates, outcomes, title, subtitle) {
   estimates |>
     mutate(
-      horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+      horizon = factor(horizon, levels = horizon_wave_levels),
       strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
       outcome = factor(outcome, levels = outcomes),
       strat_color = as.character(strategy)
@@ -225,7 +276,7 @@ df_w10_no_repeated_videos <- datasets$wave_10 |>
   filter(shown_both_waves == 0)
 
 tibble(
-  sample = c("Original wave 10", "No repeated videos"),
+  sample = c("Original Wave 2", "No repeated videos"),
   observations = c(
     nrow(datasets$wave_10),
     nrow(df_w10_no_repeated_videos)
@@ -362,9 +413,9 @@ labels_en <- c(
 
 Exhibits in manuscript order. Each item has an analysis chunk (estimates) and a formatting chunk (figure/table).
 
-## fig_1_engagement
+## Fig. 1. Effects of the digital literacy workshop on engagement with TikTok-style videos.
 
-Pooled short- and long-term ATEs on like, report, share, bookmark, skip, and watch time, by content type. Video FE; SEs clustered by respondent. Super-columns: Responses (first four) and Attention (skip, watch time).
+Pooled Wave 1 and Wave 2 ATEs on like, report, share, bookmark, skip, and watch time, by content type. Video FE; SEs clustered by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time). Stem: `fig_1_engagement`.
 
 ```{r}
 #| label: fig-1-analysis
@@ -373,9 +424,9 @@ fig1_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 
 estimates_fig1 <- bind_rows(
   estimate_pooled_ates(datasets$wave_9, fig1_outcomes) |>
-    mutate(horizon = "Short-term"),
+    mutate(horizon = "Wave 1"),
   estimate_pooled_ates(datasets$wave_10, fig1_outcomes) |>
-    mutate(horizon = "Long-term")
+    mutate(horizon = "Wave 2")
 )
 ```
 
@@ -383,16 +434,14 @@ estimates_fig1 <- bind_rows(
 #| label: fig-1-format
 #| fig-width: 12
 #| fig-height: 5
+#| fig-cap: "Fig. 1. Effects of the digital literacy workshop on engagement with TikTok-style videos."
 
 fig1 <- estimates_fig1 |>
   mutate(
-    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    horizon = factor(horizon, levels = horizon_wave_levels),
     strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
     outcome = factor(outcome, levels = fig1_outcomes),
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    ),
+    super = outcome_super(outcome),
     strat_color = as.character(strategy)
   ) |>
   ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
@@ -400,6 +449,7 @@ fig1 <- estimates_fig1 |>
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
   facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = shared_binary_x_scales(estimates_fig1, fig1_outcomes)) +
   scale_color_manual(values = strategy_color_values, guide = "none") +
   labs(
     x = "Average treatment effect",
@@ -425,9 +475,9 @@ write_fig(
 )
 ```
 
-## fig_2_party_partisanship
+## Fig. 2. By party and partisanship.
 
-Conditional effects by party and sample. Emotionally manipulative political videos, wave 9; everyone, partisans, and non-partisans. Super-columns: Responses (like, report, share, bookmark) and Attention (skip, watch time).
+Conditional effects by party and sample. Emotionally manipulative political videos, Wave 1; everyone, partisans, and non-partisans. Super-columns: Engagement (like, report, share, bookmark) and Attention (skip, watch time). Stem: `fig_2_party_partisanship`.
 
 ```{r}
 #| label: fig-2-analysis
@@ -532,6 +582,7 @@ estimates_fig2 <- lapply(fig2_sample_order, function(samp) {
 #| label: fig-2-format
 #| fig-width: 12
 #| fig-height: 8
+#| fig-cap: "Fig. 2. By party and partisanship."
 
 dodge_fig2 <- position_dodge(width = 0.55)
 
@@ -562,10 +613,7 @@ fig2_x_scales <- lapply(fig2_outcomes, function(y) {
 
 fig2 <- estimates_fig2 |>
   mutate(
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    )
+    super = outcome_super(outcome)
   ) |>
   ggplot(aes(x = estimate, y = party, color = sample)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -610,9 +658,9 @@ write_fig(
 
 # Supporting Information
 
-Exhibits in compiled SI order. Not created here: Table S1 (descriptives fragment), Table S2 (scraped-handle longtable), Figure S1 (example-video PNG), workshop/interface screenshots, and Table S15 (PAP reconciliation, written in the SI `.tex`).
+Exhibits in compiled SI order. HTML figure labels start at **Fig. S2** (Fig. S1 is the static example-video PNG). Not created here: Table S1 (descriptives fragment), Table S2 (scraped-handle longtable), Fig. S1 (example-video PNG), workshop/interface screenshots, and Table S15 (PAP reconciliation, written in the SI `.tex`).
 
-## tab_s3_cohens_kappa
+## Table S3. Average Cohen's Kappa between coder pairings
 
 Mean pairwise Cohen's $\kappa$ across three coder rounds (anger, fear, superiority, and any-emotion vs none). Same statistic as `pre_survey_prep/3.3_Validted Political Set.ipynb`. Recomputed if `data/coder_ratings.rds` is present (wide panel with `anger_1`/`anger_2`/`anger_3`, and the same for fear and superiority); otherwise the published means from that notebook are written so this file still produces the SI `.tex`.
 
@@ -710,13 +758,13 @@ knitr::kable(
     Superiority = round(kappa_s3[["superiority"]], 3),
     `Any emotion` = round(kappa_s3[["any_emotion"]], 3)
   ),
-  caption = "Average Cohen's Kappa between coder pairings"
+  caption = "Table S3. Average Cohen's Kappa between coder pairings"
 )
 ```
 
-## tab_s4_strategy_by_party
+## Table S4. Distribution of emotion categories in the full political sample and survey video bundle
 
-Party × `strategy_2` counts for the 400 experiment videos (unique `video` in wave 9). Entertainment videos have blank party and form their own row; political videos are emotional or neutral.
+Compiled SI Table S4 is `tab_s4_strategy_by_party_combined` (static TeX fragment). This chunk writes experiment-sample party × strategy counts (`tab_s4_strategy_by_party`). Party × `strategy_2` counts for the 400 experiment videos (unique `video` in Wave 1). Entertainment videos have blank party and form their own row; political videos are emotional or neutral.
 
 ```{r}
 #| label: tab-s4-analysis
@@ -787,11 +835,13 @@ knitr::kable(
       Entertainment = entertainment,
       All = all
     ),
-  caption = "Strategy distribution across videos"
+  caption = "Table S4. Strategy distribution across videos (experiment sample; compiled SI Table S4 uses the combined fragment)"
 )
 ```
 
-## fig_s2_platform_comments
+## Fig. S2. Engagement with the platform.
+
+Stem: `fig_s2_platform_comments`. Comment classification of open-ended platform remarks (ecological validity).
 
 ```{r}
 #| label: fig-s2-analysis
@@ -817,6 +867,7 @@ comments_counts <- comments_df |>
 #| label: fig-s2-format
 #| fig-width: 8
 #| fig-height: 4
+#| fig-cap: "Fig. S2. Engagement with the platform."
 
 fig_s2 <- comments_counts |>
   ggplot(aes(x = scale_label, y = pct)) +
@@ -837,9 +888,9 @@ write_fig(
 )
 ```
 
-## fig_s3_outcome_levels_treat_control
+## Fig. S3. Levels of outcomes by treatment condition.
 
-Table-order companion to manuscript Figure 1 (SI Figure S3): mean short- and long-term outcome levels by content type and treatment (not ATEs). Same 2×6 layout; all three content types; cluster-robust 95% CIs by respondent.
+Stem: `fig_s3_outcome_levels_treat_control`. Table-order companion to manuscript Figure 1: mean Wave 1 and Wave 2 outcome levels by content type and treatment (not ATEs). Same 2×6 layout; all three content types; cluster-robust 95% CIs by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time). Each outcome column has its own x-scale.
 
 ```{r}
 #| label: fig-s3-outcome-levels-analysis
@@ -848,12 +899,12 @@ treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
 outcome_order_levels <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 
 df_levels_row <- bind_rows(
-  datasets$wave_9 |> mutate(horizon = "Short-term"),
-  datasets$wave_10 |> mutate(horizon = "Long-term")
+  datasets$wave_9 |> mutate(horizon = "Wave 1"),
+  datasets$wave_10 |> mutate(horizon = "Wave 2")
 ) |>
   transmute(
     ID = as.character(ID),
-    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    horizon = factor(horizon, levels = horizon_wave_levels),
     strategy = factor(as.character(strategy_2), levels = rev(strategy_order_article)),
     treatment = factor(
       ifelse(workshop_Treatment == 1, "Treatment", "Control"),
@@ -896,10 +947,12 @@ est_levels <- df_levels_row |>
 #| label: fig-s3-outcome-levels-format
 #| fig-width: 12
 #| fig-height: 5.5
+#| fig-cap: "Fig. S3. Levels of outcomes by treatment condition."
 
 pd <- position_dodge(width = 0.5)
 
 fig_s3_outcome_levels_treat_control <- est_levels |>
+  mutate(super = outcome_super(outcome)) |>
   ggplot(aes(x = estimate, y = strategy, color = treatment)) +
   geom_errorbar(
     aes(xmin = conf.low, xmax = conf.high),
@@ -907,7 +960,7 @@ fig_s3_outcome_levels_treat_control <- est_levels |>
     position = pd
   ) +
   geom_point(size = 1.8, position = pd) +
-  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
   scale_color_manual(values = treat_cols, name = NULL) +
   labs(
     x = "Mean outcome level",
@@ -934,9 +987,9 @@ write_fig(
 )
 ```
 
-## fig_s3_by_strategy
+## Fig. S4. Patterns conditional on strategy.
 
-Short-term ATEs by emotional strategy (anger, fear, superiority) on like, report, share, bookmark, skip, and watch time. Video FE; SEs clustered by respondent. Super-columns: Responses (first four) and Attention (skip, watch time).
+Stem: `fig_s3_by_strategy` (filename retained; compiled SI number is S4). Wave 1 ATEs by emotional strategy (anger, fear, superiority) on like, report, share, bookmark, skip, and watch time. Video FE; SEs clustered by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-s3-by-strategy-analysis
@@ -961,26 +1014,25 @@ estimates_s3 <- lapply(s3_outcomes, function(Y) {
 #| label: fig-s3-by-strategy-format
 #| fig-width: 12
 #| fig-height: 3.5
+#| fig-cap: "Fig. S4. Patterns conditional on strategy."
 
 fig_s3 <- estimates_s3 |>
   mutate(
     strategy = factor(as.character(strategy), levels = rev(emotion_strats)),
     outcome = factor(outcome, levels = s3_outcomes),
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    )
+    super = outcome_super(outcome)
   ) |>
   ggplot(aes(x = estimate, y = strategy, color = strategy)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
   facet_nested(. ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = shared_binary_x_scales(estimates_s3, s3_outcomes)) +
   scale_color_discrete(guide = "none") +
   labs(
     x = "Average treatment effect",
     y = NULL,
-    title = "Short-term effects by emotional strategy",
+    title = "Wave 1 effects by emotional strategy",
     subtitle = "Video FE; SEs clustered by respondent"
   ) +
   theme_bw(base_size = 10) +
@@ -1000,64 +1052,9 @@ write_fig(
 )
 ```
 
-## fig_s5_skip_watch_by_partisanship
+## Fig. S5. Differential effects for emotional political videos.
 
-Short-term ATEs on skip and watch time by partisanship. Video FE; SEs clustered by respondent. Super-column: Attention (skip, watch time).
-
-```{r}
-#| label: fig-s5-analysis
-
-estimates_s5 <- lapply(l_outcomegroups[["_other"]], function(Y) {
-  lapply(strategies, function(S) {
-    lapply(names(l_partisanship), function(PS) {
-      run_feols_tidy(
-        df = datasets$wave_9 |>
-          filter(strategy_2 == S, partisan %in% l_partisanship[[PS]]),
-        outcome_var = v_outcomes[[Y]],
-        extra_cols = list(outcome = Y, strategy = S, partisan = PS)
-      )
-    }) |> bind_rows()
-  }) |> bind_rows()
-}) |>
-  bind_rows() |>
-  mutate(outcome = factor(outcome, levels = l_outcomegroups[["_other"]]))
-```
-
-```{r}
-#| label: fig-s5-format
-#| fig-width: 7
-#| fig-height: 6
-
-fig_s5 <- estimates_s5 |>
-  mutate(
-    super = factor("Attention", levels = "Attention")
-  ) |>
-  ggplot(aes(y = strategy, x = estimate, color = strategy)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_point() +
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-  facet_nested(partisan ~ super + outcome, scales = "free_x") +
-  labs(title = "Skip and watch time by partisanship") +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
-    strip.text = element_text(size = 10)
-  )
-
-write_fig(
-  stem = "fig_s5_skip_watch_by_partisanship",
-  estimates = estimates_s5,
-  plot = fig_s5,
-  width = 7,
-  height = 6,
-  publish = si_pdf("fig_s5_skip_watch_by_partisanship")
-)
-```
-
-## tab_s5–s8 content-type contrasts
-
-**fig_s4_type_treat_did.** Treatment × type interactions on all six outcomes (emotional vs politically neutral; emotional vs entertainment). Pairwise samples; video FE; cluster-robust 95% CIs by respondent. Companion to Tables S5–S8.
+Stem: `fig_s4_type_treat_did` (filename retained; compiled SI number is S5). Treatment × type interactions on all six outcomes (emotional vs politically neutral; emotional vs entertainment). Pairwise samples; video FE; cluster-robust 95% CIs by respondent. Companion to Tables S5–S8. Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-s4-analysis
@@ -1069,8 +1066,8 @@ contrast_specs <- list(
   "Emotional vs entertainment\n× treatment" = c(strategies[1], "entertainment")
 )
 horizon_data <- list(
-  "Short-term" = datasets$wave_9,
-  "Long-term" = datasets$wave_10
+  "Wave 1" = datasets$wave_9,
+  "Wave 2" = datasets$wave_10
 )
 
 est_did <- bind_rows(lapply(names(horizon_data), function(h) {
@@ -1099,18 +1096,21 @@ est_did <- bind_rows(lapply(names(horizon_data), function(h) {
 #| label: fig-s4-format
 #| fig-width: 12
 #| fig-height: 5.5
+#| fig-cap: "Fig. S5. Differential effects for emotional political videos."
 
 fig_s4_type_treat_did <- est_did |>
   mutate(
-    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    horizon = factor(horizon, levels = horizon_wave_levels),
     outcome = factor(outcome, levels = outcome_order_did),
-    contrast = factor(contrast, levels = rev(names(contrast_specs)))
+    contrast = factor(contrast, levels = rev(names(contrast_specs))),
+    super = outcome_super(outcome)
   ) |>
   ggplot(aes(x = estimate, y = contrast)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
-  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = shared_binary_x_scales(est_did, outcome_order_did)) +
   labs(
     x = "Treatment × type interaction",
     y = NULL,
@@ -1135,7 +1135,9 @@ write_fig(
 )
 ```
 
-Short-term like and report: emotional vs neutral and emotional vs entertainment. Video FE; cluster ID. Columns: ALL and sending parties.
+## Tables S5–S8. Emotional vs other content-type contrasts
+
+Wave 1 like and report: emotional vs politically neutral (Tables S5–S6) and emotional vs entertainment (Tables S7–S8). Video FE; cluster ID. Columns: ALL and sending parties.
 
 ```{r}
 #| label: tab-s5-s8-analysis
@@ -1193,7 +1195,7 @@ models_emo_ent <- lapply(compare_outcomes, function(Y) {
 #| label: tab-s5-s8-format
 #| results: 'asis'
 
-write_type_contrast <- function(models, dest_stem, caption, label) {
+write_type_contrast <- function(models, dest_stem, caption, label, html_caption = caption) {
   write_tab_rds(models, dest_stem)
   texreg::texreg(
     models,
@@ -1213,7 +1215,7 @@ write_type_contrast <- function(models, dest_stem, caption, label) {
     include.ci = FALSE,
     custom.model.names = names(models),
     custom.coef.map = type_contrast_coef_map,
-    caption = caption,
+    caption = html_caption,
     stars = texreg_stars
   )
 }
@@ -1221,30 +1223,36 @@ write_type_contrast <- function(models, dest_stem, caption, label) {
 write_type_contrast(
   models_emo_neu$Like,
   "tab_s5_emo_vs_neutral_like",
-  "Emotional vs politically neutral: Like (short-term). Video FE; SEs clustered by respondent.",
-  "tab:compare_emotional_vs_neutral_like"
+  "Emotional vs politically neutral: Like (Wave 1). Video FE; SEs clustered by respondent.",
+  "tab:compare_emotional_vs_neutral_like",
+  "Table S5. Emotional vs politically neutral: Like (short-term). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_neu$Report,
   "tab_s6_emo_vs_neutral_report",
-  "Emotional vs politically neutral: Report (short-term). Video FE; SEs clustered by respondent.",
-  "tab:compare_emotional_vs_neutral_report"
+  "Emotional vs politically neutral: Report (Wave 1). Video FE; SEs clustered by respondent.",
+  "tab:compare_emotional_vs_neutral_report",
+  "Table S6. Emotional vs politically neutral: Report (short-term). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_ent$Like,
   "tab_s7_emo_vs_ent_like",
-  "Emotional vs entertainment: Like (short-term). Video FE; SEs clustered by respondent.",
-  "tab:compare_emotional_vs_entertainment_like"
+  "Emotional vs entertainment: Like (Wave 1). Video FE; SEs clustered by respondent.",
+  "tab:compare_emotional_vs_entertainment_like",
+  "Table S7. Emotional vs entertainment: Like (short-term). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_ent$Report,
   "tab_s8_emo_vs_ent_report",
-  "Emotional vs entertainment: Report (short-term). Video FE; SEs clustered by respondent.",
-  "tab:compare_emotional_vs_entertainment_report"
+  "Emotional vs entertainment: Report (Wave 1). Video FE; SEs clustered by respondent.",
+  "tab:compare_emotional_vs_entertainment_report",
+  "Table S8. Emotional vs entertainment: Report (short-term). Video FE; SEs clustered by respondent."
 )
 ```
 
-## fig_s6_attrition_covariates
+## Fig. S6. Attrition (0/1) regressed on standardized pre-treatment covariates
+
+Stem: `fig_s6_attrition_covariates`. Main-effect linear probability models.
 
 ```{r}
 #| label: fig-s6-analysis
@@ -1268,6 +1276,7 @@ results_main <- lapply(covs, function(v) {
 #| label: fig-s6-format
 #| fig-height: 12
 #| fig-width: 9
+#| fig-cap: "Fig. S6. Attrition (0/1) regressed on standardized pre-treatment covariates (main effects; linear probability models)."
 
 fig_s6 <- results_main |>
   ggplot(aes(x = estimate, y = forcats::fct_reorder(label, estimate))) +
@@ -1291,7 +1300,7 @@ write_fig(
 )
 ```
 
-## tab_s9_attrition
+## Table S9. Attrition by treatment condition
 
 ```{r}
 #| label: tab-s9-analysis
@@ -1370,11 +1379,13 @@ publish_tex("tab_s9_attrition")
 knitr::kable(
   attrit_rows,
   digits = 2,
-  caption = "Attrition by treatment condition"
+  caption = "Table S9. Attrition by treatment condition"
 )
 ```
 
-## fig_s7_attrition_interaction
+## Fig. S7. Attrition (0/1) regressed on the interaction between treatment and pre-treatment covariates
+
+Stem: `fig_s7_attrition_interaction`.
 
 ```{r}
 #| label: fig-s7-analysis
@@ -1394,6 +1405,7 @@ results_int <- lapply(covs, function(v) {
 #| label: fig-s7-format
 #| fig-height: 12
 #| fig-width: 9
+#| fig-cap: "Fig. S7. Attrition (0/1) regressed on the interaction between treatment and pre-treatment covariates."
 
 fig_s7 <- results_int |>
   ggplot(aes(x = estimate, y = forcats::fct_reorder(label, estimate))) +
@@ -1417,10 +1429,9 @@ write_fig(
 )
 ```
 
-## fig_s8_fig1_nonattriters
+## Fig. S8. Short-term pooled engagement effects among non-attriters
 
-Figure 1 short-term companion, restricted to respondents retained in wave 10.
-Same six outcomes and Responses / Attention super-headers as Figure 1.
+Stem: `fig_s8_fig1_nonattriters`. Figure 1 Wave 1 companion, restricted to respondents retained in Wave 2. Same six outcomes and Engagement / Attention super-headers as Figure 1.
 
 ```{r}
 #| label: fig-s8-analysis
@@ -1433,23 +1444,21 @@ nonattrit_ids <- df_w9_w10 |>
 df_w9_nonattrit <- datasets$wave_9 |>
   filter(as.character(ID) %in% nonattrit_ids)
 estimates_s8 <- estimate_pooled_ates(df_w9_nonattrit, s8_outcomes) |>
-  mutate(horizon = "Short-term")
+  mutate(horizon = "Wave 1")
 ```
 
 ```{r}
 #| label: fig-s8-format
 #| fig-width: 12
 #| fig-height: 3.5
+#| fig-cap: "Fig. S8. Short-term pooled engagement effects (Like, Report, Share, Bookmark) by content strategy, restricted to non-attriters. Attrition-sensitivity check for manuscript Figure 1 showing results largely unchanged."
 
 fig_s8 <- estimates_s8 |>
   mutate(
-    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    horizon = factor(horizon, levels = horizon_wave_levels),
     strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
     outcome = factor(outcome, levels = s8_outcomes),
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    ),
+    super = outcome_super(outcome),
     strat_color = as.character(strategy)
   ) |>
   ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
@@ -1457,11 +1466,12 @@ fig_s8 <- estimates_s8 |>
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
   facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = shared_binary_x_scales(estimates_s8, s8_outcomes)) +
   scale_color_manual(values = strategy_color_values, guide = "none") +
   labs(
     x = "Average treatment effect",
     y = NULL,
-    title = "Pooled short-term treatment effects (non-attriters)",
+    title = "Pooled Wave 1 treatment effects (non-attriters)",
     subtitle = "Video FE; SEs clustered by respondent; retained respondents only"
   ) +
   theme_bw(base_size = 10) +
@@ -1482,11 +1492,11 @@ write_fig(
 )
 ```
 
-## fig_s9_longterm_no_repeat
+## Fig. S9. Long-term treatment effects excluding repeated video exposure
 
-Long-term ATEs after dropping respondent–video pairs already shown in both waves
+Stem: `fig_s9_longterm_no_repeat`. Wave 2 ATEs after dropping respondent–video pairs already shown in both waves
 (`shown_both_waves == 0`; flag merged in `1_data_prep.qmd`).
-Super-columns: Responses (first four) and Attention (skip, watch time).
+Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-s9-analysis
@@ -1502,13 +1512,14 @@ estimates_s9 <- bind_rows(
   estimate_pooled_ates(df_w10_norepeat, l_outcomegroups$main),
   estimate_pooled_ates(df_w10_norepeat, l_outcomegroups[["_other"]])
 ) |>
-  mutate(horizon = "Long-term")
+  mutate(horizon = "Wave 2")
 ```
 
 ```{r}
 #| label: fig-s9-format
 #| fig-width: 12
 #| fig-height: 3.5
+#| fig-cap: "Fig. S9. Long-term treatment effects excluding repeated video exposure."
 
 fig_s9 <- estimates_s9 |>
   mutate(
@@ -1517,10 +1528,7 @@ fig_s9 <- estimates_s9 |>
       outcome,
       levels = c(l_outcomegroups$main, l_outcomegroups[["_other"]])
     ),
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    ),
+    super = outcome_super(outcome),
     strat_color = as.character(strategy)
   ) |>
   ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
@@ -1528,11 +1536,17 @@ fig_s9 <- estimates_s9 |>
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
   facet_nested(. ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(
+    x = shared_binary_x_scales(
+      estimates_s9,
+      c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+    )
+  ) +
   scale_color_manual(values = strategy_color_values, guide = "none") +
   labs(
     x = "Average treatment effect",
     y = NULL,
-    title = "Long-term effects excluding repeated video exposure",
+    title = "Wave 2 effects excluding repeated video exposure",
     subtitle = "Video FE; SEs clustered by respondent"
   ) +
   theme_bw(base_size = 10) +
@@ -1552,7 +1566,7 @@ write_fig(
 )
 ```
 
-## tab_s10_afd_3way_short and tab_s11_afd_3way_long
+## Tables S10–S11. AfD-specific triple interactions
 
 ```{r}
 #| label: tab-s10-s11-analysis
@@ -1605,7 +1619,7 @@ models_afd_3way_lt <- lapply(afd_3way_outcomes, function(Y) fit_afd_3way(df_afd_
 #| label: tab-s10-s11-format
 #| results: 'asis'
 
-write_afd_3way <- function(models, dest_stem, caption, label) {
+write_afd_3way <- function(models, dest_stem, caption, label, html_caption = caption) {
   write_tab_rds(models, dest_stem)
   texreg::texreg(
     models,
@@ -1625,7 +1639,7 @@ write_afd_3way <- function(models, dest_stem, caption, label) {
     include.ci = FALSE,
     custom.model.names = afd_3way_outcomes,
     custom.coef.map = afd_3way_coef_map,
-    caption = caption,
+    caption = html_caption,
     stars = texreg_stars
   )
 }
@@ -1633,18 +1647,20 @@ write_afd_3way <- function(models, dest_stem, caption, label) {
 write_afd_3way(
   models_afd_3way,
   "tab_s10_afd_3way_short",
-  "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, short-term). Video FE; SEs clustered by respondent.",
-  "tab:afd_video_3way_demeaned"
+  "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 1). Video FE; SEs clustered by respondent.",
+  "tab:afd_video_3way_demeaned",
+  "Table S10. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, short-term). Video FE; SEs clustered by respondent."
 )
 write_afd_3way(
   models_afd_3way_lt,
   "tab_s11_afd_3way_long",
-  "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, long-term / wave 10). Video FE; SEs clustered by respondent.",
-  "tab:afd_video_3way_demeaned_longterm"
+  "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 2). Video FE; SEs clustered by respondent.",
+  "tab:afd_video_3way_demeaned_longterm",
+  "Table S11. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, long-term / wave 10). Video FE; SEs clustered by respondent."
 )
 ```
 
-## tab_s12_afd_identification
+## Table S12. Effect of digital literacy workshop on AfD identification
 
 ```{r}
 #| label: tab-s12-analysis
@@ -1682,10 +1698,10 @@ texreg::texreg(
   custom.coef.map = list(
     "(Intercept)" = "Intercept",
     "workshop" = "Treatment (workshop)",
-    "party_id_w9_afd_demeaned" = "AfD ID (wave 9, demeaned)",
+    "party_id_w9_afd_demeaned" = "AfD ID (Wave 1, demeaned)",
     "workshop:party_id_w9_afd_demeaned" = "Treatment × AfD ID (demeaned)"
   ),
-  caption = "Effect of digital literacy workshop on AfD identification (wave 10).",
+  caption = "Effect of digital literacy workshop on AfD identification (Wave 2).",
   label = "tab:afd_maintained_support",
   stars = texreg_stars
 )
@@ -1695,11 +1711,14 @@ texreg::htmlreg(
   digits = 3,
   include.ci = FALSE,
   custom.model.names = c("All respondents", "AfD identifiers", "Non-AfD respondents"),
+  caption = "Table S12. Effect of digital literacy workshop on AfD identification (wave 10).",
   stars = texreg_stars
 )
 ```
 
-## fig_s10_pid_by_prior
+## Fig. S10. Effect on party identification conditional on prior identification
+
+Stem: `fig_s10_pid_by_prior`.
 
 ```{r}
 #| label: fig-s10-analysis
@@ -1743,6 +1762,7 @@ maintained_results <- maintained_results |>
 #| label: fig-s10-format
 #| fig-height: 9
 #| fig-width: 7
+#| fig-cap: "Fig. S10. Effect on party identification conditional on prior identification."
 
 fig_s10 <- maintained_results |>
   ggplot(aes(x = estimate, y = party, color = group)) +
@@ -1759,7 +1779,7 @@ fig_s10 <- maintained_results |>
     hjust = 0.5, vjust = -0.7, size = 2.5, show.legend = FALSE
   ) +
   labs(
-    x = "Effect of workshop on party identification (wave 10)",
+    x = "Effect of workshop on party identification (Wave 2)",
     y = "Party",
     color = NULL,
     title = "Effects of digital literacy workshop on party identification"
@@ -1776,7 +1796,9 @@ write_fig(
 )
 ```
 
-## fig_s11–s13 party-ID transitions
+## Fig. S11. Change in party identification, wave 1 to wave 2, full sample
+
+Stem: `fig_s11_pid_transitions`. Figs. S12–S13 use the same transition construction for treatment and control.
 
 ```{r}
 #| label: fig-s11-analysis
@@ -1800,29 +1822,29 @@ build_pid_lodes <- function(df_input) {
       to_party = recode(sub("^party_id_w10_(.*)$", "\\1", var), !!!labs)
     )
   transitions <- inner_join(from, to, by = "id_w9") |>
-    count(`Wave 9` = from_party, `Wave 10` = to_party, name = "Freq")
+    count(`Wave 1` = from_party, `Wave 2` = to_party, name = "Freq")
   totN <- sum(transitions$Freq)
   share_w9 <- transitions |>
-    group_by(`Wave 9`) |>
+    group_by(`Wave 1`) |>
     summarise(s9 = sum(Freq) / totN, .groups = "drop")
   share_w10 <- transitions |>
-    group_by(`Wave 10`) |>
+    group_by(`Wave 2`) |>
     summarise(s10 = sum(Freq) / totN, .groups = "drop")
   net_pp <- share_w10 |>
-    left_join(share_w9, by = c("Wave 10" = "Wave 9")) |>
+    left_join(share_w9, by = c("Wave 2" = "Wave 1")) |>
     mutate(
       delta_pp = (s10 - s9) * 100,
-      label_right = sprintf("%s\n(%+0.2f pp)", `Wave 10`, delta_pp)
+      label_right = sprintf("%s\n(%+0.2f pp)", `Wave 2`, delta_pp)
     ) |>
-    select(`Wave 10`, label_right)
+    select(`Wave 2`, label_right)
   lodes <- transitions |>
     mutate(Share = Freq / totN) |>
     to_lodes_form(axes = 1:2, id = "alluvium") |>
     mutate(
-      x = factor(x, levels = c("Wave 9", "Wave 10")),
+      x = factor(x, levels = c("Wave 1", "Wave 2")),
       stratum_lab = ifelse(
-        x == "Wave 10",
-        net_pp$label_right[match(stratum, net_pp$`Wave 10`)],
+        x == "Wave 2",
+        net_pp$label_right[match(stratum, net_pp$`Wave 2`)],
         as.character(stratum)
       )
     )
@@ -1847,7 +1869,7 @@ plot_pid_alluvial <- function(lodes, party_cols, title_text) {
     geom_stratum(fill = "white", color = "black", size = 0.3) +
     geom_text(stat = "stratum", size = 4) +
     scale_fill_manual(values = party_cols, guide = "none") +
-    scale_x_discrete(labels = c("Wave 9", "Wave 10"), expand = c(0.05, 0.05)) +
+    scale_x_discrete(labels = c("Wave 1", "Wave 2"), expand = c(0.05, 0.05)) +
     labs(x = NULL, y = NULL, title = title_text) +
     theme_minimal(base_size = 12) +
     theme(
@@ -1862,9 +1884,10 @@ pid_overall <- build_pid_lodes(df_w9_w10)
 
 ```{r}
 #| label: fig-s11-format
+#| fig-cap: "Fig. S11. Change in party identification, wave 1 to wave 2, full sample."
 fig_s11 <- plot_pid_alluvial(
   pid_overall$lodes, pid_overall$party_cols,
-  "Party identification transitions: Wave 9 \u2192 Wave 10"
+  "Party identification transitions: Wave 1 \u2192 Wave 2"
 )
 write_fig(
   stem = "fig_s11_pid_transitions",
@@ -1879,8 +1902,13 @@ write_fig(
 pid_treat <- build_pid_lodes(df_w9_w10 |> filter(workshop == 1))
 ```
 
+## Fig. S12. Change in party identification, wave 1 to wave 2, treatment group
+
+Stem: `fig_s12_pid_transitions_treat`.
+
 ```{r}
 #| label: fig-s12-format
+#| fig-cap: "Fig. S12. Change in party identification, wave 1 to wave 2, treatment group."
 fig_s12 <- plot_pid_alluvial(
   pid_treat$lodes, pid_treat$party_cols,
   "Party identification transitions (treatment)"
@@ -1898,8 +1926,13 @@ write_fig(
 pid_control <- build_pid_lodes(df_w9_w10 |> filter(workshop == 0))
 ```
 
+## Fig. S13. Change in party identification, wave 1 to wave 2, control group
+
+Stem: `fig_s13_pid_transitions_control`.
+
 ```{r}
 #| label: fig-s13-format
+#| fig-cap: "Fig. S13. Change in party identification, wave 1 to wave 2, control group."
 fig_s13 <- plot_pid_alluvial(
   pid_control$lodes, pid_control$party_cols,
   "Party identification transitions (control)"
@@ -1912,7 +1945,9 @@ write_fig(
 )
 ```
 
-## fig_s14_ptv
+## Fig. S14. Effects of the digital literacy workshop on propensity to vote (PTV)
+
+Stem: `fig_s14_ptv`. By party and prior identification.
 
 ```{r}
 #| label: fig-s14-analysis
@@ -1946,11 +1981,11 @@ party_order_ptv <- ptv_short |>
   pull(party) |>
   as.character()
 estimates_ptv <- bind_rows(
-  ptv_short |> mutate(horizon = "Short-term (wave 9)"),
-  ptv_long |> mutate(horizon = "Long-term (wave 10)")
+  ptv_short |> mutate(horizon = "Wave 1"),
+  ptv_long |> mutate(horizon = "Wave 2")
 ) |>
   mutate(
-    horizon = factor(horizon, levels = c("Short-term (wave 9)", "Long-term (wave 10)")),
+    horizon = factor(horizon, levels = horizon_wave_levels),
     party = factor(as.character(party), levels = party_order_ptv),
     group = factor(as.character(group), levels = group_levels)
   )
@@ -1960,6 +1995,7 @@ estimates_ptv <- bind_rows(
 #| label: fig-s14-format
 #| fig-width: 10
 #| fig-height: 8
+#| fig-cap: "Fig. S14. Effects of the digital literacy workshop on propensity to vote (PTV), by party and prior identification."
 
 dodge_ptv <- position_dodge(width = 0.6)
 fig_s14 <- estimates_ptv |>
@@ -1998,7 +2034,7 @@ write_fig(
 )
 ```
 
-## tab_s13_pap_h1a
+## Table S13. PAP H1a reconciliation
 
 ```{r}
 #| label: tab-s13-analysis
@@ -2030,7 +2066,7 @@ names(h1_bh_row) <- names(models_h1)
 
 h1_caption <- paste(
   "PAP H1a reconciliation: Like, Share, Bookmark, and engage = mean(share, like, bookmark)",
-  "on emotional political videos (short-term). Video FE; SEs clustered by respondent.",
+  "on emotional political videos (Wave 1). Video FE; SEs clustered by respondent.",
   "Row p (BH FDR): Benjamini--Hochberg FDR correction across the three component tests",
   "(Like, Share, Bookmark); Engage is not in that family."
 )
@@ -2054,92 +2090,14 @@ texreg::htmlreg(
   custom.model.names = names(models_h1),
   custom.coef.map = list("workshop_Treatment" = "Treatment"),
   custom.gof.rows = list("p (BH FDR)" = unname(h1_bh_row)),
-  caption = h1_caption,
+  caption = paste("Table S13.", h1_caption),
   stars = texreg_stars
 )
 ```
 
-## fig_s16_fig1_nofe
+## Table S14. Pairwise outcome correlations
 
-Figure 1 companion without video fixed effects (cluster ID retained). Six outcomes
-with Responses | Attention super-headers, as in Figure 1.
-
-```{r}
-#| label: fig-s16-analysis
-
-s16_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
-
-estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
-  df <- datasets[[D]]
-  lapply(s16_outcomes, function(Y) {
-    lapply(unique(as.character(df$strategy_2)), function(S) {
-      feols(
-        as.formula(paste(v_outcomes[[Y]], "~ workshop_Treatment")),
-        data = df |> filter(strategy_2 == S),
-        cluster = ~ID
-      ) |>
-        tidy(conf.int = TRUE) |>
-        filter(term == "workshop_Treatment") |>
-        mutate(
-          outcome = Y,
-          strategy = S,
-          horizon = if (D == "wave_9") "Short-term" else "Long-term"
-        )
-    }) |> bind_rows()
-  }) |> bind_rows()
-}) |>
-  bind_rows()
-```
-
-```{r}
-#| label: fig-s16-format
-#| fig-width: 12
-#| fig-height: 5
-
-fig_s16 <- estimates_s16 |>
-  mutate(
-    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
-    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
-    outcome = factor(outcome, levels = s16_outcomes),
-    super = factor(
-      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
-      levels = c("Responses", "Attention")
-    ),
-    strat_color = as.character(strategy)
-  ) |>
-  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-  geom_point(size = 1.8) +
-  facet_nested(horizon ~ super + outcome, scales = "free_x") +
-  scale_color_manual(values = strategy_color_values, guide = "none") +
-  labs(
-    x = "Average treatment effect",
-    y = NULL,
-    title = "PAP reconciliation: pooled effects without video FE",
-    subtitle = "Cluster ID only (no video FE). Compare to primary Figure 1."
-  ) +
-  theme_bw(base_size = 10) +
-  theme(
-    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
-    axis.text.y = element_text(size = 9),
-    strip.text = element_text(size = 10),
-    panel.spacing.y = unit(6, "pt")
-  )
-
-write_fig(
-  stem = "fig_s16_fig1_nofe",
-  estimates = estimates_s16,
-  plot = fig_s16,
-  width = 12,
-  height = 5,
-  publish = si_pdf("fig_s16_fig1_nofe")
-)
-```
-
-## tab_s14_outcome_cors
-
-Pairwise outcome correlations on emotionally manipulative political videos, wave 9. Cells expanded to three rows ($r_T$, $r_C$, $\Delta$) with a rule after each outcome group.
+Pairwise outcome correlations on emotionally manipulative political videos, Wave 1. Cells expanded to three rows ($r_T$, $r_C$, $\Delta$) with a rule after each outcome group. Compiled SI Table S15 (PAP reconciliation) is written in the SI `.tex`, not here.
 
 ```{r}
 #| label: tab-s14-analysis
@@ -2302,7 +2260,7 @@ tex <- c(
   "\\end{tabular}",
   paste0(
     "\\caption{Pairwise outcome correlations (emotionally manipulative political videos; ",
-    "video--respondent rows, wave 9 only). ",
+    "video--respondent rows, Wave 1 only). ",
     "Within each outcome, three rows report $r_{T}$, $r_{C}$, and $\\Delta=r_{T}-r_{C}$ ",
     "with clustered-interaction stars ($*/**/***$) on $\\Delta$. Diagonal blank.}"
   ),
@@ -2314,9 +2272,86 @@ writeLines(tex, file.path(tab_dir, "tab_s14_outcome_cors.tex"))
 publish_tex("tab_s14_outcome_cors")
 knitr::kable(
   html_mat,
-  caption = "Outcome correlations — treatment vs control (wave 9). Groups of three rows: r_T, r_C, Delta.",
+  caption = "Table S14. Pairwise outcome correlations (emotionally manipulative political videos; video-respondent rows, Wave 1). Groups of three rows: r_T, r_C, Delta.",
   align = c("l", "l", rep("c", length(oc_labs))),
   escape = FALSE,
   row.names = FALSE
 )
 ```
+
+## Fig. S15. Main engagement patterns without video fixed effects
+
+Stem: `fig_s16_fig1_nofe` (filename retained; compiled SI number is S15 because the former ellipses figure is commented out of the SI TeX). Figure 1 companion without video fixed effects (cluster ID retained). Six outcomes with Engagement | Attention super-headers, as in Figure 1.
+
+```{r}
+#| label: fig-s16-analysis
+
+s16_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
+estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
+  df <- datasets[[D]]
+  lapply(s16_outcomes, function(Y) {
+    lapply(unique(as.character(df$strategy_2)), function(S) {
+      feols(
+        as.formula(paste(v_outcomes[[Y]], "~ workshop_Treatment")),
+        data = df |> filter(strategy_2 == S),
+        cluster = ~ID
+      ) |>
+        tidy(conf.int = TRUE) |>
+        filter(term == "workshop_Treatment") |>
+        mutate(
+          outcome = Y,
+          strategy = S,
+          horizon = if (D == "wave_9") "Wave 1" else "Wave 2"
+        )
+    }) |> bind_rows()
+  }) |> bind_rows()
+}) |>
+  bind_rows()
+```
+
+```{r}
+#| label: fig-s16-format
+#| fig-width: 12
+#| fig-height: 5
+#| fig-cap: "Fig. S15. Main engagement patterns without video fixed effects (respondent-clustered standard errors retained). Companion to the manuscript Figure 1 specification."
+
+fig_s16 <- estimates_s16 |>
+  mutate(
+    horizon = factor(horizon, levels = horizon_wave_levels),
+    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
+    outcome = factor(outcome, levels = s16_outcomes),
+    super = outcome_super(outcome),
+    strat_color = as.character(strategy)
+  ) |>
+  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = shared_binary_x_scales(estimates_s16, s16_outcomes)) +
+  scale_color_manual(values = strategy_color_values, guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "PAP reconciliation: pooled effects without video FE",
+    subtitle = "Cluster ID only (no video FE). Compare to primary Figure 1."
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
+write_fig(
+  stem = "fig_s16_fig1_nofe",
+  estimates = estimates_s16,
+  plot = fig_s16,
+  width = 12,
+  height = 5,
+  publish = si_pdf("fig_s16_fig1_nofe")
+)
+```
+
