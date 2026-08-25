@@ -173,6 +173,52 @@ wave_10_prepared |>
 wave_10_prepared |>
   write_rds("data/wave_10.rds")
 
+
+
+# ---- Construct and save sample overview ----
+
+count_sample_stages <- function(df) {
+
+  randomized <- df |>
+    filter(SwitchedToRandom == 1)
+
+  valid <- randomized |>
+    filter(!duration_video_ %in% c(-9, NA))
+
+  two_or_more <- valid |>
+    add_count(ID, name = "number_video") |>
+    filter(number_video >= 2)
+
+  c(
+    source = n_distinct(df$ID),
+    randomized = n_distinct(randomized$ID),
+    valid_one = n_distinct(valid$ID),
+    valid_two = n_distinct(two_or_more$ID)
+  )
+}
+
+w9_counts  <- count_sample_stages(df_09v)
+w10_counts <- count_sample_stages(df_10v)
+
+w9_ids  <- df_09v |> distinct(ID)
+w10_ids <- df_10v |> distinct(ID)
+
+stopifnot(nrow(anti_join(w10_ids, w9_ids, by = "ID")) == 0)
+
+sample_overview <- tribble(
+  ~wave,    ~stage_id,       ~sample_stage,                           ~respondents,             ~analysis_role,
+  "Wave 1", "w1_source",     "IDs in raw video source file",          w9_counts[["source"]],     "Raw source",
+  "Wave 1", "w1_randomized", "SwitchedToRandom = 1",                  w9_counts[["randomized"]], "Attrition baseline",
+  "Wave 1", "w1_valid_one",  "At least one valid video observation",  w9_counts[["valid_one"]],  "Intermediate sample",
+  "Wave 1", "w1_valid_two",  "At least two valid video observations", w9_counts[["valid_two"]],  "Short-term analysis sample",
+  "Wave 2", "w2_returned",   "Participated in both waves",            w10_counts[["source"]],    "Retained respondents",
+  "Wave 2", "w2_valid_one",  "At least one valid video observation",  w10_counts[["valid_one"]], "Intermediate sample",
+  "Wave 2", "w2_valid_two",  "At least two valid video observations", w10_counts[["valid_two"]], "Long-term analysis sample"
+)
+
+sample_overview |>
+  write_rds("data/sample_overview.rds")
+
 ```
 
 
