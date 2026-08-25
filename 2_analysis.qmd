@@ -33,7 +33,8 @@ pacman::p_load(
   ellipse,
   ggrepel,
   texreg,
-  ggalluvial
+  ggalluvial,
+  ggh4x
 )
 ```
 
@@ -363,86 +364,77 @@ Exhibits in manuscript order. Each item has an analysis chunk (estimates) and a 
 
 ## fig_1_engagement
 
-Pooled short- and long-term ATEs on like, report, share, and bookmark, by content type. Video FE; SEs clustered by respondent.
+Pooled short- and long-term ATEs on like, report, share, bookmark, skip, and watch time, by content type. Video FE; SEs clustered by respondent. Super-columns: Responses (first four) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-1-analysis
 
+fig1_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
 estimates_fig1 <- bind_rows(
-  estimate_pooled_ates(datasets$wave_9, l_outcomegroups$main) |>
+  estimate_pooled_ates(datasets$wave_9, fig1_outcomes) |>
     mutate(horizon = "Short-term"),
-  estimate_pooled_ates(datasets$wave_10, l_outcomegroups$main) |>
+  estimate_pooled_ates(datasets$wave_10, fig1_outcomes) |>
     mutate(horizon = "Long-term")
 )
 ```
 
 ```{r}
 #| label: fig-1-format
-#| fig-width: 10
+#| fig-width: 12
 #| fig-height: 5
 
-fig1 <- plot_pooled_horizon(
-  estimates_fig1,
-  l_outcomegroups$main,
-  title = "Pooled treatment effects by content type",
-  subtitle = "Video FE; SEs clustered by respondent"
-)
+fig1 <- estimates_fig1 |>
+  mutate(
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
+    outcome = factor(outcome, levels = fig1_outcomes),
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    ),
+    strat_color = as.character(strategy)
+  ) |>
+  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  scale_color_manual(values = strategy_color_values, guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "Treatment effects by content type",
+    subtitle = "Video FE; SEs clustered by respondent"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
 write_fig(
   stem = "fig_1_engagement",
   estimates = estimates_fig1,
   plot = fig1,
-  width = 10,
+  width = 12,
   height = 5,
   publish = paper_pdf("fig_1_engagement")
 )
 ```
 
-## fig_2_skip_watch
+## fig_2_party_partisanship
 
-Pooled skip and watch-time ATEs, same specification as Figure 1.
+Conditional effects by party and sample. Emotionally manipulative political videos, wave 9; everyone, partisans, and non-partisans. Super-columns: Responses (like, report, share, bookmark) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-2-analysis
-
-estimates_fig2 <- bind_rows(
-  estimate_pooled_ates(datasets$wave_9, l_outcomegroups[["_other"]]) |>
-    mutate(horizon = "Short-term"),
-  estimate_pooled_ates(datasets$wave_10, l_outcomegroups[["_other"]]) |>
-    mutate(horizon = "Long-term")
-)
-```
-
-```{r}
-#| label: fig-2-format
-#| fig-width: 8
-#| fig-height: 5
-
-fig2 <- plot_pooled_horizon(
-  estimates_fig2,
-  l_outcomegroups[["_other"]],
-  title = "Skip and watch-time effects by content type",
-  subtitle = "Video FE; SEs clustered by respondent"
-)
-write_fig(
-  stem = "fig_2_skip_watch",
-  estimates = estimates_fig2,
-  plot = fig2,
-  width = 8,
-  height = 5,
-  publish = paper_pdf("fig_2_skip_watch")
-)
-```
-
-## fig_3_party_partisanship
-
-Emotionally manipulative political videos, wave 9. Lin (2013) treatment × demeaned party dummies on everyone, partisans, and non-partisans.
-
-```{r}
-#| label: fig-3-analysis
-#| fig-width: 10
+#| fig-width: 12
 #| fig-height: 8
 
-# Lin (2013): demeaned party dummies, video FE, cluster ID.
+# Demeaned party dummies, video FE, cluster ID.
 # Bare treatment = all-parties ATE; party rows recover party-specific TEs.
 fit_lin_party_feols <- function(df, outcome_var, party_levels, party_code_map,
                                 ref_party = party_levels[length(party_levels)]) {
@@ -501,21 +493,23 @@ fit_lin_party_feols <- function(df, outcome_var, party_levels, party_code_map,
   bind_rows(out_ate, out_parties) |> mutate(outcome_var = outcome_var)
 }
 
-fig3_samples <- list("All" = NULL, "Partisan" = 1L, "Non-partisan" = 0L)
-fig3_sample_order <- names(fig3_samples)
-fig3_sample_dodge_levels <- rev(fig3_sample_order)
+fig2_samples <- list("All" = NULL, "Partisan" = 1L, "Non-partisan" = 0L)
+fig2_sample_order <- names(fig2_samples)
+fig2_sample_dodge_levels <- rev(fig2_sample_order)
 party_labels_az <- sort(names(party_codes))
 party_row_levels <- c("All parties", party_labels_az)
 
-df_fig3 <- datasets$wave_9 |>
+fig2_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
+df_fig2 <- datasets$wave_9 |>
   filter(strategy_2 == strategies[1], !is.na(party), party %in% names(party_codes))
 
-estimates_fig3 <- lapply(fig3_sample_order, function(samp) {
-  df_s <- df_fig3
-  if (!is.null(fig3_samples[[samp]])) {
-    df_s <- df_s |> filter(partisan == fig3_samples[[samp]])
+estimates_fig2 <- lapply(fig2_sample_order, function(samp) {
+  df_s <- df_fig2
+  if (!is.null(fig2_samples[[samp]])) {
+    df_s <- df_s |> filter(partisan == fig2_samples[[samp]])
   }
-  lapply(l_outcomegroups$main, function(Y) {
+  lapply(fig2_outcomes, function(Y) {
     fit_lin_party_feols(
       df = df_s,
       outcome_var = v_outcomes[[Y]],
@@ -528,43 +522,73 @@ estimates_fig3 <- lapply(fig3_sample_order, function(samp) {
 }) |>
   bind_rows() |>
   mutate(
-    outcome = factor(outcome, levels = l_outcomegroups$main),
-    sample = factor(sample, levels = fig3_sample_dodge_levels),
+    outcome = factor(outcome, levels = fig2_outcomes),
+    sample = factor(sample, levels = fig2_sample_dodge_levels),
     party = factor(party, levels = party_row_levels)
   )
 ```
 
 ```{r}
-#| label: fig-3-format
-#| fig-width: 10
+#| label: fig-2-format
+#| fig-width: 12
 #| fig-height: 8
 
-x_half_fig3 <- max(abs(estimates_fig3$estimate), na.rm = TRUE)
-dodge_fig3 <- position_dodge(width = 0.55)
+dodge_fig2 <- position_dodge(width = 0.55)
 
-fig3 <- estimates_fig3 |>
+# Per-outcome x-limits from point estimates only (not CIs). Buffer is 15% of
+# that panel's estimate range, with a 0.005 floor when the range is tiny.
+# facetted_pos_scales clips OOB geoms (wide error bars) like coord_cartesian;
+# ggh4x ignores per-scale oob, so rows are not dropped.
+fig2_x_lims <- estimates_fig2 |>
+  summarise(
+    lo = min(estimate, na.rm = TRUE),
+    hi = max(estimate, na.rm = TRUE),
+    .by = outcome
+  ) |>
+  mutate(
+    pad = pmax(0.15 * (hi - lo), 0.005),
+    xmin = lo - pad,
+    xmax = hi + pad
+  )
+
+# Unnamed list matches nested columns left-to-right (fig2_outcomes order).
+fig2_x_scales <- lapply(fig2_outcomes, function(y) {
+  r <- fig2_x_lims[as.character(fig2_x_lims$outcome) == y, ]
+  scale_x_continuous(
+    limits = c(r$xmin, r$xmax),
+    expand = expansion(mult = 0)
+  )
+})
+
+fig2 <- estimates_fig2 |>
+  mutate(
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    )
+  ) |>
   ggplot(aes(x = estimate, y = party, color = sample)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_errorbar(
     aes(xmin = conf.low, xmax = conf.high),
     width = 0.2,
-    position = dodge_fig3
+    position = dodge_fig2
   ) +
-  geom_point(size = 1.6, position = dodge_fig3) +
-  facet_grid(cols = vars(outcome)) +
+  geom_point(size = 1.6, position = dodge_fig2) +
+  facet_nested(. ~ super + outcome, scales = "free_x") +
+  facetted_pos_scales(x = fig2_x_scales) +
   scale_y_discrete(limits = rev(party_row_levels)) +
   scale_color_discrete(
-    limits = fig3_sample_dodge_levels,
-    breaks = fig3_sample_order,
+    limits = fig2_sample_dodge_levels,
+    breaks = fig2_sample_order,
     guide = guide_legend(reverse = TRUE)
   ) +
-  coord_cartesian(xlim = c(-x_half_fig3, x_half_fig3) * 0.92) +
   labs(
     x = "Average treatment effect",
     y = NULL,
     color = NULL,
-    title = "Emotional political videos: Lin effects by party and sample",
-    subtitle = "Bare coef = All-parties row; party rows = Lin party-specific TEs. Video FE; cluster ID."
+    title = "Conditional effects by party and sample",
+    subtitle = "Video FE; SEs clustered by respondent"
   ) +
   theme_bw(base_size = 10) +
   theme(
@@ -575,12 +599,12 @@ fig3 <- estimates_fig3 |>
   )
 
 write_fig(
-  stem = "fig_3_party_partisanship",
-  estimates = estimates_fig3,
-  plot = fig3,
-  width = 10,
+  stem = "fig_2_party_partisanship",
+  estimates = estimates_fig2,
+  plot = fig2,
+  width = 12,
   height = 8,
-  publish = paper_pdf("fig_3_party_partisanship")
+  publish = paper_pdf("fig_2_party_partisanship")
 )
 ```
 
@@ -813,62 +837,115 @@ write_fig(
 )
 ```
 
-## fig_s3_by_strategy
+## fig_s3_outcome_levels_treat_control
 
-Short-term ATEs by emotional strategy (anger, fear, superiority).
+Table-order companion to manuscript Figure 1 (SI Figure S3): mean short- and long-term outcome levels by content type and treatment (not ATEs). Same 2×6 layout; all three content types; cluster-robust 95% CIs by respondent.
 
 ```{r}
-#| label: fig-s3-analysis
+#| label: fig-s3-outcome-levels-analysis
 
-df_s3 <- datasets$wave_9
-estimates_s3 <- lapply(l_outcomegroups$main, function(Y) {
-  lapply(c("anger", "fear", "superiority"), function(S) {
-    run_feols_tidy(
-      df = df_s3 |> filter(strategy == S),
-      outcome_var = v_outcomes[[Y]],
-      extra_cols = list(outcome = Y, strategy = S)
-    )
-  }) |> bind_rows()
-}) |>
-  bind_rows() |>
-  mutate(outcome = factor(outcome, levels = l_outcomegroups$main))
+treat_cols <- c(Control = "#4C78A8", Treatment = "#E45756")
+outcome_order_levels <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
+df_levels_row <- bind_rows(
+  datasets$wave_9 |> mutate(horizon = "Short-term"),
+  datasets$wave_10 |> mutate(horizon = "Long-term")
+) |>
+  transmute(
+    ID = as.character(ID),
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    strategy = factor(as.character(strategy_2), levels = rev(strategy_order_article)),
+    treatment = factor(
+      ifelse(workshop_Treatment == 1, "Treatment", "Control"),
+      levels = c("Control", "Treatment")
+    ),
+    Like = as.numeric(videoLikep1r),
+    Report = as.numeric(videoCommentTickedp1r),
+    Share = as.numeric(videoSharep1r),
+    Bookmark = as.numeric(videoBookmarkp1r),
+    Skip = as.numeric(skipped_video_),
+    `Watch Time` = as.numeric(watch_percentage_)
+  ) |>
+  pivot_longer(
+    cols = all_of(outcome_order_levels),
+    names_to = "outcome",
+    values_to = "y"
+  ) |>
+  filter(is.finite(y), !is.na(strategy), !is.na(treatment))
+
+est_levels <- df_levels_row |>
+  mutate(outcome = factor(outcome, levels = outcome_order_levels)) |>
+  group_by(horizon, outcome, strategy, treatment) |>
+  group_modify(~ {
+    m <- estimatr::lm_robust(y ~ 1, data = .x, clusters = ID)
+    broom::tidy(m, conf.int = TRUE) |>
+      dplyr::filter(term == "(Intercept)") |>
+      dplyr::transmute(
+        estimate,
+        std.error,
+        conf.low,
+        conf.high,
+        n = nrow(.x),
+        n_id = dplyr::n_distinct(.x$ID)
+      )
+  }) |>
+  ungroup()
 ```
 
 ```{r}
-#| label: fig-s3-format
-#| fig-width: 7
-#| fig-height: 3
+#| label: fig-s3-outcome-levels-format
+#| fig-width: 12
+#| fig-height: 5.5
 
-fig_s3 <- estimates_s3 |>
-  ggplot(aes(y = strategy, x = estimate, color = strategy)) +
-  geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_point() +
-  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-  facet_grid(cols = vars(outcome)) +
-  labs(title = "Short-term effects by emotional strategy") +
-  theme_bw() +
+pd <- position_dodge(width = 0.5)
+
+fig_s3_outcome_levels_treat_control <- est_levels |>
+  ggplot(aes(x = estimate, y = strategy, color = treatment)) +
+  geom_errorbar(
+    aes(xmin = conf.low, xmax = conf.high),
+    width = 0.2,
+    position = pd
+  ) +
+  geom_point(size = 1.8, position = pd) +
+  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  scale_color_manual(values = treat_cols, name = NULL) +
+  labs(
+    x = "Mean outcome level",
+    y = NULL,
+    title = "Outcome levels by content type and treatment",
+    subtitle = "Video–respondent rows; cluster-robust 95% CIs by respondent"
+  ) +
+  theme_bw(base_size = 10) +
   theme(
-    legend.position = "none",
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt"),
+    legend.position = "bottom"
   )
 
 write_fig(
-  stem = "fig_s3_by_strategy",
-  estimates = estimates_s3,
-  plot = fig_s3,
-  width = 7,
-  height = 3,
-  publish = si_pdf("fig_s3_by_strategy")
+  stem = "fig_s3_outcome_levels_treat_control",
+  estimates = est_levels,
+  plot = fig_s3_outcome_levels_treat_control,
+  width = 12,
+  height = 5.5,
+  publish = si_pdf("fig_s3_outcome_levels_treat_control")
 )
 ```
 
-## fig_s4_skip_watch_by_strategy
+## fig_s3_by_strategy
+
+Short-term ATEs by emotional strategy (anger, fear, superiority) on like, report, share, bookmark, skip, and watch time. Video FE; SEs clustered by respondent. Super-columns: Responses (first four) and Attention (skip, watch time).
 
 ```{r}
-#| label: fig-s4-analysis
+#| label: fig-s3-by-strategy-analysis
 
-estimates_s4 <- lapply(l_outcomegroups[["_other"]], function(Y) {
-  lapply(c("anger", "fear", "superiority"), function(S) {
+s3_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+emotion_strats <- c("anger", "fear", "superiority")
+
+estimates_s3 <- lapply(s3_outcomes, function(Y) {
+  lapply(emotion_strats, function(S) {
     run_feols_tidy(
       df = datasets$wave_9 |> filter(strategy == S),
       outcome_var = v_outcomes[[Y]],
@@ -877,38 +954,55 @@ estimates_s4 <- lapply(l_outcomegroups[["_other"]], function(Y) {
   }) |> bind_rows()
 }) |>
   bind_rows() |>
-  mutate(outcome = factor(outcome, levels = l_outcomegroups[["_other"]]))
+  mutate(outcome = factor(outcome, levels = s3_outcomes))
 ```
 
 ```{r}
-#| label: fig-s4-format
-#| fig-width: 7
-#| fig-height: 3
+#| label: fig-s3-by-strategy-format
+#| fig-width: 12
+#| fig-height: 3.5
 
-fig_s4 <- estimates_s4 |>
-  ggplot(aes(y = strategy, x = estimate, color = strategy)) +
+fig_s3 <- estimates_s3 |>
+  mutate(
+    strategy = factor(as.character(strategy), levels = rev(emotion_strats)),
+    outcome = factor(outcome, levels = s3_outcomes),
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    )
+  ) |>
+  ggplot(aes(x = estimate, y = strategy, color = strategy)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_point() +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-  facet_grid(cols = vars(outcome)) +
-  labs(title = "Skip and watch time by emotional strategy") +
-  theme_bw() +
+  geom_point(size = 1.8) +
+  facet_nested(. ~ super + outcome, scales = "free_x") +
+  scale_color_discrete(guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "Short-term effects by emotional strategy",
+    subtitle = "Video FE; SEs clustered by respondent"
+  ) +
+  theme_bw(base_size = 10) +
   theme(
-    legend.position = "none",
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10)
   )
 
 write_fig(
-  stem = "fig_s4_skip_watch_by_strategy",
-  estimates = estimates_s4,
-  plot = fig_s4,
-  width = 7,
-  height = 3,
-  publish = si_pdf("fig_s4_skip_watch_by_strategy")
+  stem = "fig_s3_by_strategy",
+  estimates = estimates_s3,
+  plot = fig_s3,
+  width = 12,
+  height = 3.5,
+  publish = si_pdf("fig_s3_by_strategy")
 )
 ```
 
 ## fig_s5_skip_watch_by_partisanship
+
+Short-term ATEs on skip and watch time by partisanship. Video FE; SEs clustered by respondent. Super-column: Attention (skip, watch time).
 
 ```{r}
 #| label: fig-s5-analysis
@@ -935,16 +1029,20 @@ estimates_s5 <- lapply(l_outcomegroups[["_other"]], function(Y) {
 #| fig-height: 6
 
 fig_s5 <- estimates_s5 |>
+  mutate(
+    super = factor("Attention", levels = "Attention")
+  ) |>
   ggplot(aes(y = strategy, x = estimate, color = strategy)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point() +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
-  facet_grid(cols = vars(outcome), rows = vars(partisan)) +
+  facet_nested(partisan ~ super + outcome, scales = "free_x") +
   labs(title = "Skip and watch time by partisanship") +
   theme_bw() +
   theme(
     legend.position = "none",
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
+    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    strip.text = element_text(size = 10)
   )
 
 write_fig(
@@ -958,6 +1056,84 @@ write_fig(
 ```
 
 ## tab_s5–s8 content-type contrasts
+
+**fig_s4_type_treat_did.** Treatment × type interactions on all six outcomes (emotional vs politically neutral; emotional vs entertainment). Pairwise samples; video FE; cluster-robust 95% CIs by respondent. Companion to Tables S5–S8.
+
+```{r}
+#| label: fig-s4-analysis
+
+outcome_order_did <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
+contrast_specs <- list(
+  "Emotional vs neutral\n× treatment" = strategies,
+  "Emotional vs entertainment\n× treatment" = c(strategies[1], "entertainment")
+)
+horizon_data <- list(
+  "Short-term" = datasets$wave_9,
+  "Long-term" = datasets$wave_10
+)
+
+est_did <- bind_rows(lapply(names(horizon_data), function(h) {
+  bind_rows(lapply(names(contrast_specs), function(c_lab) {
+    df <- horizon_data[[h]] |>
+      filter(strategy_2 %in% contrast_specs[[c_lab]]) |>
+      mutate(
+        type_dummy = as.integer(strategy_2 == strategies[1]),
+        across(all_of(unname(v_outcomes)), \(z) as.numeric(haven::zap_labels(z)))
+      )
+    bind_rows(lapply(outcome_order_did, function(Y) {
+      feols(
+        as.formula(paste0(v_outcomes[[Y]], " ~ workshop_Treatment * type_dummy | video")),
+        data = df,
+        cluster = ~ID
+      ) |>
+        broom::tidy(conf.int = TRUE) |>
+        filter(term == "workshop_Treatment:type_dummy") |>
+        mutate(horizon = h, contrast = c_lab, outcome = Y)
+    }))
+  }))
+}))
+```
+
+```{r}
+#| label: fig-s4-format
+#| fig-width: 12
+#| fig-height: 5.5
+
+fig_s4_type_treat_did <- est_did |>
+  mutate(
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    outcome = factor(outcome, levels = outcome_order_did),
+    contrast = factor(contrast, levels = rev(names(contrast_specs)))
+  ) |>
+  ggplot(aes(x = estimate, y = contrast)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_grid(rows = vars(horizon), cols = vars(outcome), scales = "free_x") +
+  labs(
+    x = "Treatment × type interaction",
+    y = NULL,
+    title = "Treatment effect on the emotional-minus-other gap",
+    subtitle = "Pairwise samples; video FE; cluster-robust 95% CIs by respondent"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
+write_fig(
+  stem = "fig_s4_type_treat_did",
+  estimates = est_did,
+  plot = fig_s4_type_treat_did,
+  width = 12,
+  height = 5.5,
+  publish = si_pdf("fig_s4_type_treat_did")
+)
+```
 
 Short-term like and report: emotional vs neutral and emotional vs entertainment. Video FE; cluster ID. Columns: ALL and sending parties.
 
@@ -1244,36 +1420,63 @@ write_fig(
 ## fig_s8_fig1_nonattriters
 
 Figure 1 short-term companion, restricted to respondents retained in wave 10.
+Same six outcomes and Responses / Attention super-headers as Figure 1.
 
 ```{r}
 #| label: fig-s8-analysis
 
+s8_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 nonattrit_ids <- df_w9_w10 |>
   filter(attrit == 0) |>
   pull(id_w9) |>
   as.character()
 df_w9_nonattrit <- datasets$wave_9 |>
   filter(as.character(ID) %in% nonattrit_ids)
-estimates_s8 <- estimate_pooled_ates(df_w9_nonattrit, l_outcomegroups$main) |>
+estimates_s8 <- estimate_pooled_ates(df_w9_nonattrit, s8_outcomes) |>
   mutate(horizon = "Short-term")
 ```
 
 ```{r}
 #| label: fig-s8-format
-#| fig-width: 10
+#| fig-width: 12
 #| fig-height: 3.5
 
-fig_s8 <- plot_pooled_horizon(
-  estimates_s8,
-  l_outcomegroups$main,
-  title = "Pooled short-term treatment effects (non-attriters)",
-  subtitle = "Video FE; SEs clustered by respondent; retained respondents only"
-)
+fig_s8 <- estimates_s8 |>
+  mutate(
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
+    outcome = factor(outcome, levels = s8_outcomes),
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    ),
+    strat_color = as.character(strategy)
+  ) |>
+  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  scale_color_manual(values = strategy_color_values, guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "Pooled short-term treatment effects (non-attriters)",
+    subtitle = "Video FE; SEs clustered by respondent; retained respondents only"
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
 write_fig(
   stem = "fig_s8_fig1_nonattriters",
   estimates = estimates_s8,
   plot = fig_s8,
-  width = 10,
+  width = 12,
   height = 3.5,
   publish = si_pdf("fig_s8_fig1_nonattriters")
 )
@@ -1283,6 +1486,7 @@ write_fig(
 
 Long-term ATEs after dropping respondent–video pairs already shown in both waves
 (`shown_both_waves == 0`; flag merged in `1_data_prep.qmd`).
+Super-columns: Responses (first four) and Attention (skip, watch time).
 
 ```{r}
 #| label: fig-s9-analysis
@@ -1313,13 +1517,17 @@ fig_s9 <- estimates_s9 |>
       outcome,
       levels = c(l_outcomegroups$main, l_outcomegroups[["_other"]])
     ),
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    ),
     strat_color = as.character(strategy)
   ) |>
   ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
-  facet_grid(cols = vars(outcome), scales = "free_x") +
+  facet_nested(. ~ super + outcome, scales = "free_x") +
   scale_color_manual(values = strategy_color_values, guide = "none") +
   labs(
     x = "Average treatment effect",
@@ -1329,8 +1537,9 @@ fig_s9 <- estimates_s9 |>
   ) +
   theme_bw(base_size = 10) +
   theme(
-    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 8),
-    strip.text = element_text(size = 9)
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10)
   )
 
 write_fig(
@@ -1852,14 +2061,17 @@ texreg::htmlreg(
 
 ## fig_s16_fig1_nofe
 
-Figure 1 specification without video fixed effects (cluster ID retained).
+Figure 1 companion without video fixed effects (cluster ID retained). Six outcomes
+with Responses | Attention super-headers, as in Figure 1.
 
 ```{r}
 #| label: fig-s16-analysis
 
+s16_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+
 estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
   df <- datasets[[D]]
-  lapply(l_outcomegroups$main, function(Y) {
+  lapply(s16_outcomes, function(Y) {
     lapply(unique(as.character(df$strategy_2)), function(S) {
       feols(
         as.formula(paste(v_outcomes[[Y]], "~ workshop_Treatment")),
@@ -1881,20 +2093,45 @@ estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
 
 ```{r}
 #| label: fig-s16-format
-#| fig-width: 10
+#| fig-width: 12
 #| fig-height: 5
 
-fig_s16 <- plot_pooled_horizon(
-  estimates_s16,
-  l_outcomegroups$main,
-  title = "PAP reconciliation: pooled effects without video FE",
-  subtitle = "Cluster ID only (no video FE). Compare to primary Figure 1."
-)
+fig_s16 <- estimates_s16 |>
+  mutate(
+    horizon = factor(horizon, levels = c("Short-term", "Long-term")),
+    strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
+    outcome = factor(outcome, levels = s16_outcomes),
+    super = factor(
+      if_else(as.character(outcome) %in% l_outcomegroups$main, "Responses", "Attention"),
+      levels = c("Responses", "Attention")
+    ),
+    strat_color = as.character(strategy)
+  ) |>
+  ggplot(aes(x = estimate, y = strategy, color = strat_color)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
+  geom_point(size = 1.8) +
+  facet_nested(horizon ~ super + outcome, scales = "free_x") +
+  scale_color_manual(values = strategy_color_values, guide = "none") +
+  labs(
+    x = "Average treatment effect",
+    y = NULL,
+    title = "PAP reconciliation: pooled effects without video FE",
+    subtitle = "Cluster ID only (no video FE). Compare to primary Figure 1."
+  ) +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.y = element_text(size = 9),
+    strip.text = element_text(size = 10),
+    panel.spacing.y = unit(6, "pt")
+  )
+
 write_fig(
   stem = "fig_s16_fig1_nofe",
   estimates = estimates_s16,
   plot = fig_s16,
-  width = 10,
+  width = 12,
   height = 5,
   publish = si_pdf("fig_s16_fig1_nofe")
 )
@@ -2081,100 +2318,5 @@ knitr::kable(
   align = c("l", "l", rep("c", length(oc_labs))),
   escape = FALSE,
   row.names = FALSE
-)
-```
-
-## fig_s15_outcome_ellipses
-
-Within-wave pairwise outcome correlations on emotionally manipulative political videos (`strategy_2 == strategies[1]`, same content-type restriction as `tab_s14`), treatment vs control, short-term (wave 9) and long-term (wave 10).
-
-```{r}
-#| label: fig-s15-analysis
-
-build_cor_df <- function(df, wave_label) {
-  bind_rows(lapply(c("Treated", "Control"), function(tr) {
-    df_sel <- df |>
-      filter(workshop_Treatment == if (tr == "Treated") 1 else 0) |>
-      select(all_of(v_outcomes))
-    colnames(df_sel) <- names(v_outcomes)
-    as.data.frame(as.table(cor(df_sel, use = "pairwise.complete.obs"))) |>
-      rename(var1 = Var1, var2 = Var2, r = Freq) |>
-      mutate(treat = tr, wave = wave_label)
-  }))
-}
-
-cor_long <- bind_rows(
-  build_cor_df(datasets$wave_9 |> filter(strategy_2 == strategies[1]), "Short-term"),
-  build_cor_df(datasets$wave_10 |> filter(strategy_2 == strategies[1]), "Long-term")
-) |>
-  mutate(sign = ifelse(r >= 0, "positive", "negative"))
-var_levels <- names(v_outcomes)
-cor_long <- cor_long |>
-  mutate(
-    x_idx = match(var2, var_levels),
-    y_idx = match(var1, var_levels)
-  )
-scale_in_cell <- 0.42
-ellipse_upper <- cor_long |>
-  filter(y_idx < x_idx) |>
-  group_by(wave, treat, var1, var2, r, x_idx, y_idx, sign) |>
-  do({
-    rr <- .$r[1]
-    S <- matrix(c(1, rr, rr, 1), nrow = 2)
-    e <- as.data.frame(ellipse::ellipse(S, centre = c(0, 0), level = 0.68, npoints = 80))
-    maxabs <- max(max(abs(e$x)), max(abs(e$y)), 1e-9)
-    e$x <- (e$x / maxabs) * scale_in_cell + .$x_idx[1]
-    e$y <- (e$y / maxabs) * scale_in_cell + .$y_idx[1]
-    e$wave <- .$wave[1]
-    e$treat <- .$treat[1]
-    e$var1 <- .$var1[1]
-    e$var2 <- .$var2[1]
-    e$sign <- .$sign[1]
-    e$r <- rr
-    e
-  }) |>
-  ungroup()
-label_lower <- cor_long |>
-  filter(y_idx > x_idx) |>
-  mutate(label = sprintf("%.2f", r))
-```
-
-```{r}
-#| label: fig-s15-format
-#| fig-width: 9
-#| fig-height: 7
-
-fig_s15 <- ggplot() +
-  geom_polygon(
-    data = ellipse_upper,
-    aes(x = x, y = y, group = interaction(wave, treat, var1, var2), fill = sign),
-    color = NA, alpha = 0.75
-  ) +
-  geom_text(
-    data = label_lower,
-    aes(x = x_idx, y = y_idx, label = label, color = sign),
-    size = 3
-  ) +
-  scale_fill_manual(values = c(positive = "#d73027", negative = "#4575b4"), name = "Sign") +
-  scale_color_manual(values = c(positive = "#d73027", negative = "#4575b4"), guide = "none") +
-  scale_x_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
-  scale_y_continuous(breaks = seq_along(var_levels), labels = var_levels, expand = expansion(mult = 0.05)) +
-  coord_fixed() +
-  labs(x = NULL, y = NULL) +
-  theme_bw() +
-  theme(
-    legend.position = "none",
-    panel.grid = element_blank(),
-    axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)
-  ) +
-  facet_grid(rows = vars(treat), cols = vars(wave))
-
-write_fig(
-  stem = "fig_s15_outcome_ellipses",
-  estimates = cor_long,
-  plot = fig_s15,
-  width = 9,
-  height = 7,
-  publish = si_pdf("fig_s15_outcome_ellipses")
 )
 ```
