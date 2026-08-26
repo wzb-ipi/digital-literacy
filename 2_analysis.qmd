@@ -432,10 +432,9 @@ sample_tex <- knitr::kable(
   sample_table,
   format = "latex",
   booktabs = TRUE,
+  linesep = "",
   digits = 0,
   format.args = list(big.mark = ","),
-  caption = "Sample construction by study wave.",
-  label = "tab:sample-overview",
   align = c("l", "l", "r", "l")
 )
 
