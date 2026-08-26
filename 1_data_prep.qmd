@@ -200,22 +200,25 @@ count_sample_stages <- function(df) {
 w9_counts  <- count_sample_stages(df_09v)
 w10_counts <- count_sample_stages(df_10v)
 
-w9_ids  <- df_09v |> distinct(ID)
+w9_ids <- df_09v |>
+  filter(SwitchedToRandom == 1) |>
+  distinct(ID)
+
+# do not need to subset because all randomized order 
 w10_ids <- df_10v |> distinct(ID)
 
 stopifnot(nrow(anti_join(w10_ids, w9_ids, by = "ID")) == 0)
 
 sample_overview <- tribble(
-  ~wave,    ~stage_id,       ~sample_stage,                           ~respondents,             ~analysis_role,
-  "Wave 1", "w1_source",     "IDs in raw video source file",          w9_counts[["source"]],     "Raw source",
-  "Wave 1", "w1_randomized", "SwitchedToRandom = 1",                  w9_counts[["randomized"]], "Attrition baseline",
-  "Wave 1", "w1_valid_one",  "At least one valid video observation",  w9_counts[["valid_one"]],  "Intermediate sample",
-  "Wave 1", "w1_valid_two",  "At least two valid video observations", w9_counts[["valid_two"]],  "Short-term analysis sample",
-  "Wave 2", "w2_returned",   "Participated in both waves",            w10_counts[["source"]],    "Retained respondents",
-  "Wave 2", "w2_valid_one",  "At least one valid video observation",  w10_counts[["valid_one"]], "Intermediate sample",
-  "Wave 2", "w2_valid_two",  "At least two valid video observations", w10_counts[["valid_two"]], "Long-term analysis sample"
+  ~wave,    ~stage_id,       ~sample_stage,                                      ~respondents,             ~analysis_role,
+  "Wave 1", "w1_source",     "IDs in raw video source file",                     w9_counts[["source"]],     "Raw source",
+  "Wave 1", "w1_randomized", "SwitchedToRandom = 1",                             w9_counts[["randomized"]], "Attrition baseline",
+  "Wave 1", "w1_valid_one",  "At least one video with recorded duration",        w9_counts[["valid_one"]],  "Intermediate sample",
+  "Wave 1", "w1_valid_two",  "At least two videos started (duration recorded)",  w9_counts[["valid_two"]],  "Short-term analysis sample",
+  "Wave 2", "w2_returned",   "Participated in both waves",                       w10_counts[["source"]],    "Retained respondents",
+  "Wave 2", "w2_valid_one",  "At least one video with recorded duration",        w10_counts[["valid_one"]], "Intermediate sample",
+  "Wave 2", "w2_valid_two",  "At least two videos started (duration recorded)",  w10_counts[["valid_two"]], "Long-term analysis sample"
 )
-
 sample_overview |>
   write_rds("data/sample_overview.rds")
 
