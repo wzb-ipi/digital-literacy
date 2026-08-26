@@ -271,6 +271,7 @@ datasets <- list(
   wave_9  = read_rds("data/wave_9.rds"),
   wave_10 = read_rds("data/wave_10.rds"))
 
+sample_overview <- read_rds("data/sample_overview.rds")
 
 df_w10_no_repeated_videos <- datasets$wave_10 |>
   filter(shown_both_waves == 0)
@@ -412,6 +413,47 @@ labels_en <- c(
 # Paper
 
 Exhibits in manuscript order. Each item has an analysis chunk (estimates) and a formatting chunk (figure/table).
+
+## Sample Overview
+```{r}
+#| label: tab-sample-overview
+#| results: 'asis'
+
+sample_table <- sample_overview |>
+  mutate(wave = if_else(duplicated(wave), "", wave)) |>
+  select(
+    Wave = wave,
+    `Sample stage` = sample_stage,
+    Respondents = respondents,
+    `Role in analysis` = analysis_role
+  )
+
+sample_tex <- knitr::kable(
+  sample_table,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 0,
+  format.args = list(big.mark = ","),
+  caption = "Sample construction by study wave.",
+  label = "tab:sample-overview",
+  align = c("l", "l", "r", "l")
+)
+
+writeLines(
+  sample_tex,
+  file.path(tab_dir, "tab_sample_overview.tex")
+)
+
+knitr::kable(
+  sample_table,
+  digits = 0,
+  format.args = list(big.mark = ","),
+  caption = "Sample construction by study wave"
+)
+
+```
+
+
 
 ## Fig. 1. Effects of the digital literacy workshop on engagement with TikTok-style videos.
 
