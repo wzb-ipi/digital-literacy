@@ -722,7 +722,7 @@ if (isTRUE(RUN_FORESTS)) {
 
   cat(
     "Causal-forest sample (exploratory; RUN_FORESTS = TRUE)\n",
-    "  Unit: person × sending party (emotional political, wave_9)\n",
+    "  Unit: person × sending party (emotional political, Wave 1)\n",
     "  Outcomes fit: ", paste(cf_outcomes_fit, collapse = ", "), "\n",
     "  ID×party cells before listwise: ", n_before, "\n",
     "  ID×party cells after listwise:  ", n_after,
@@ -1148,7 +1148,7 @@ write_fig(
 )
 ```
 
-**Watch Time vs Like CATEs by AfD vs not AfD (viewer × video).** Same OOB forest CATEs as the 4×4 grid (**Watch Time** and **Like** columns of `cate_unit`) — companion scatter for the attention↔liking question. Exclusive wave-9 party ID (`party_id_w9_*` on `df_w9_w10`) and cell `party` (sending party) are each collapsed to binary **AfD** vs **Not AfD**. Facet order is `AfD`, `Not AfD` on both axes so the **diagonal** is same/same (AfD viewer + AfD sender; not-AfD viewer + not-AfD sender). Respondents with Other/None/missing party ID are dropped from this figure only. Reuses saved CATEs when `RUN_FORESTS <- FALSE` (no forest refit). Because units are person×party and sending party is in $X$, CATEs can differ by party within the same respondent.
+**Watch Time vs Like CATEs by AfD vs not AfD (viewer × video).** Same OOB forest CATEs as the 4×4 grid (**Watch Time** and **Like** columns of `cate_unit`) — companion scatter for the attention↔liking question. Exclusive Wave 1 party ID (`party_id_w9_*` on `df_w9_w10`) and cell `party` (sending party) are each collapsed to binary **AfD** vs **Not AfD**. Facet order is `AfD`, `Not AfD` on both axes so the **diagonal** is same/same (AfD viewer + AfD sender; not-AfD viewer + not-AfD sender). Respondents with Other/None/missing party ID are dropped from this figure only. Reuses saved CATEs when `RUN_FORESTS <- FALSE` (no forest refit). Because units are person×party and sending party is in $X$, CATEs can differ by party within the same respondent.
 
 ```{r}
 #| label: appendix-causal-forest-watch-like-by-party
@@ -1159,7 +1159,7 @@ write_fig(
 afd_facet_levels <- c("AfD", "Not AfD")
 party_order_cf <- names(party_codes)
 
-# Viewer party: exclusive wave-9 party ID, then collapse to AfD vs Not AfD
+# Viewer party: exclusive Wave 1 party ID, then collapse to AfD vs Not AfD
 viewer_party_lookup <- {
   stubs <- unname(party_codes[party_order_cf])
   party_mat <- sapply(stubs, function(stub) {
@@ -1246,7 +1246,7 @@ write_fig(
 # SI: ecological validity of the intervention
 
 Comment classification by treatment (Wave 1), not shown in SI Figure S2.
-**Wave 1 by treatment.** Same classification shares, restricted to respondents who appear in `df_w9_w10` (wave-9 id + workshop arm). Facets = Control | Treatment. Shares renormalize within each panel. Video-type facets are **not** available here: open-ended comments are one per respondent after a mixed feed (almost everyone sees emotional, neutral, and entertainment), not video-row text.
+**Wave 1 by treatment.** Same classification shares, restricted to respondents who appear in `df_w9_w10` (Wave 1 id + workshop arm). Facets = Control | Treatment. Shares renormalize within each panel. Video-type facets are **not** available here: open-ended comments are one per respondent after a mixed feed (almost everyone sees emotional, neutral, and entertainment), not video-row text.
 
 ```{r}
 #| label: appendix-classification-comments-w9-by-treatment
@@ -1286,7 +1286,7 @@ comments_w9_treat_counts <- comments_w9_treat |>
   ungroup()
 
 cat(
-  "Comment classification by treatment (wave-9 ids in df_w9_w10)\n",
+  "Comment classification by treatment (Wave 1 ids in df_w9_w10)\n",
   "  N comments: ", nrow(comments_w9_treat),
   " (Control=", sum(comments_w9_treat$treatment == "Control"),
   "; Treatment=", sum(comments_w9_treat$treatment == "Treatment"), ")\n",
@@ -1898,7 +1898,7 @@ write_oc_cor_tex <- function(mat, path, caption, label, note_lines) {
   invisible(path)
 }
 
-# --- Table 1: T vs C, row-level, wave_9 only ----------------------------------
+# --- Table 1: T vs C, row-level, Wave 1 only ----------------------------------
 df_oc_tc <- df_oc_row |>
   filter(wave == "w9") |>
   mutate(mod_treat = as.integer(treatment == 1))
@@ -1908,7 +1908,7 @@ cells_tc <- build_oc_cor_cells(
 )
 mat_tc <- cells_to_matrix(cells_tc, oc_labs, oc_labs)
 
-# --- Table 1b: T vs C, row-level, wave_10 only --------------------------------
+# --- Table 1b: T vs C, row-level, Wave 2 only --------------------------------
 df_oc_tc_w10 <- df_oc_row |>
   filter(wave == "w10") |>
   mutate(mod_treat = as.integer(treatment == 1))
@@ -1995,20 +1995,20 @@ oc_n_summary <- list(
 
 cat(
   "Outcome correlation tables — sample sizes\n",
-  "  Table 1 (wave_9 rows): T rows=", oc_n_summary$table1$n_rows_T,
+  "  Table 1 (Wave 1 rows): T rows=", oc_n_summary$table1$n_rows_T,
   " C rows=", oc_n_summary$table1$n_rows_C,
   "; pairwise n_T in [", oc_n_summary$table1$n_pair_min_T, ", ",
   oc_n_summary$table1$n_pair_max_T, "]; n_C in [",
   oc_n_summary$table1$n_pair_min_C, ", ", oc_n_summary$table1$n_pair_max_C, "]\n",
-  "  Table 1b (wave_10 rows): T rows=", oc_n_summary$table1b$n_rows_T,
+  "  Table 1b (Wave 2 rows): T rows=", oc_n_summary$table1b$n_rows_T,
   " C rows=", oc_n_summary$table1b$n_rows_C,
   "; pairwise n_T in [", oc_n_summary$table1b$n_pair_min_T, ", ",
   oc_n_summary$table1b$n_pair_max_T, "]; n_C in [",
   oc_n_summary$table1b$n_pair_min_C, ", ", oc_n_summary$table1b$n_pair_max_C, "]\n",
-  "  Table 2a (treat): w9 rows=", oc_n_summary$table2a$n_rows_w9,
-  " w10 rows=", oc_n_summary$table2a$n_rows_w10, "\n",
-  "  Table 2b (ctrl): w9 rows=", oc_n_summary$table2b$n_rows_w9,
-  " w10 rows=", oc_n_summary$table2b$n_rows_w10, "\n",
+  "  Table 2a (treat): Wave 1 rows=", oc_n_summary$table2a$n_rows_w9,
+  " Wave 2 rows=", oc_n_summary$table2a$n_rows_w10, "\n",
+  "  Table 2b (ctrl): Wave 1 rows=", oc_n_summary$table2b$n_rows_w9,
+  " Wave 2 rows=", oc_n_summary$table2b$n_rows_w10, "\n",
   "  Table 3 (persons): T IDs=", oc_n_summary$table3$n_id_T,
   " C IDs=", oc_n_summary$table3$n_id_C,
   "; pairwise n_T in [", oc_n_summary$table3$n_pair_min_T, ", ",
@@ -2023,7 +2023,7 @@ star_note <- paste(
   "Pairwise-complete $n$."
 )
 
-# Wave-9 T vs C table is SI tab_s14 (2_analysis.qmd); not rewritten here.
+# Wave 1 T vs C table is SI tab_s14 (2_analysis.qmd); not rewritten here.
 write_oc_cor_tex(
   mat_tc_w10,
   file.path(tab_dir, "tab_outcome_cors_treat_ctrl_w10.tex"),

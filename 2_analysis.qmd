@@ -408,6 +408,228 @@ labels_en <- c(
 
 ```
 
+## Repeated videos across waves
+
+The table counts distinct videos (`video`) shown to the same respondent in both Wave 1 and Wave 2. Person-level repeat share is the share of a respondent's distinct Wave 2 videos that they had already seen in Wave 1.
+
+```{r}
+#| label: repeated-videos-across-waves
+#| results: 'asis'
+
+w9_pairs <- datasets$wave_9 |> distinct(ID, video)
+w10_pairs <- datasets$wave_10 |> distinct(ID, video)
+
+repeat_pairs <- inner_join(w9_pairs, w10_pairs, by = c("ID", "video"))
+
+ids_both <- intersect(unique(datasets$wave_9$ID), unique(datasets$wave_10$ID))
+
+repeats_person <- tibble(ID = ids_both) |>
+  left_join(count(repeat_pairs, ID, name = "n_repeat"), by = "ID") |>
+  mutate(n_repeat = replace_na(n_repeat, 0L))
+
+n_person <- nrow(repeats_person)
+n_rep <- repeats_person$n_repeat
+
+# 0–4: exact counts (partition). >4–>8: nested upper tails (not a partition).
+repeat_bin_tbl <- tibble(
+  n_repeat_bin = c(as.character(0:4), paste0(">", 4:8)),
+  n = c(
+    vapply(0:4, function(k) sum(n_rep == k), integer(1)),
+    vapply(4:8, function(k) sum(n_rep > k), integer(1))
+  )
+) |>
+  mutate(pct = 100 * n / n_person)
+
+n_within_dup <- bind_rows(
+  datasets$wave_9 |> count(ID, video) |> filter(n > 1),
+  datasets$wave_10 |> count(ID, video) |> filter(n > 1)
+) |>
+  nrow()
+
+n_w2 <- n_distinct(datasets$wave_10$ID)
+n_flag <- sum(datasets$wave_10$shown_both_waves == 1)
+n_w2_repeat_rows <- datasets$wave_10 |>
+  semi_join(repeat_pairs, by = c("ID", "video")) |>
+  nrow()
+n_flag_person <- datasets$wave_10 |>
+  group_by(ID) |>
+  summarise(n_flag = sum(shown_both_waves == 1), .groups = "drop")
+
+n_w2_videos_person <- w10_pairs |>
+  filter(ID %in% ids_both) |>
+  count(ID, name = "n_w2_videos")
+n_w1_videos_person <- w9_pairs |>
+  filter(ID %in% ids_both) |>
+  count(ID, name = "n_w1_videos")
+
+repeats_share <- repeats_person |>
+  left_join(n_w2_videos_person, by = "ID") |>
+  left_join(n_w1_videos_person, by = "ID") |>
+  mutate(
+    n_w2_videos = replace_na(n_w2_videos, 0L),
+    n_w1_videos = replace_na(n_w1_videos, 0L)
+  )
+
+n_drop_w2 <- sum(repeats_share$n_w2_videos == 0)
+
+share_w2 <- repeats_share |>
+  filter(n_w2_videos > 0) |>
+  mutate(share = n_repeat / n_w2_videos) |>
+  pull(share)
+share_w1 <- repeats_share |>
+  filter(n_w1_videos > 0) |>
+  mutate(share = n_repeat / n_w1_videos) |>
+  pull(share)
+
+writeLines(c(
+  knitr::kable(
+    repeat_bin_tbl,
+    col.names = c("Repeated videos", "Respondents", "Percent"),
+    digits = c(NA, 0, 1),
+    format.args = list(big.mark = ","),
+    align = c("l", "r", "r")
+  ),
+  "",
+  "*Note.* Rows 0–4 are exact counts (a partition of the sample); >4 through >8 are nested upper tails (not a partition).",
+  "",
+  paste0(
+    "- Sample: respondents in both Wave 1 and Wave 2 analysis files, N = ",
+    n_person, "."
+  ),
+  paste0(
+    "- Wave 2 analysis file has ", n_w2,
+    " respondents (Fig. 1 Wave 2); ", n_w2 - n_person,
+    " of them do not appear in the Wave 1 analysis file."
+  ),
+  paste0(
+    "- Mean repeats per person: ", sprintf("%.2f", mean(n_rep)),
+    "; median: ", median(n_rep), "."
+  ),
+  paste0(
+    "- Share with at least one repeat: ",
+    sprintf("%.1f%%", 100 * mean(n_rep >= 1)), "."
+  ),
+  paste0(
+    "- Share with fewer than 3 repeats: ",
+    sprintf("%.1f%%", 100 * mean(n_rep < 3)), "."
+  ),
+  paste0(
+    "- Share with more than 4 repeats: ",
+    sprintf("%.1f%%", 100 * mean(n_rep > 4)), "."
+  ),
+  paste0(
+    "- Distinct person-video repeats: ", nrow(repeat_pairs),
+    "; Wave 2 rows for those pairs: ", n_w2_repeat_rows,
+    " (no extra exposures; within-wave duplicate respondent-video rows: ",
+    n_within_dup, ")."
+  ),
+  paste0(
+    "- SI 12% definition: Wave 2 rows with shown_both_waves == 1: ",
+    n_flag, " of ", nrow(datasets$wave_10), " (",
+    sprintf("%.1f%%", 100 * n_flag / nrow(datasets$wave_10)),
+    "), or ", sprintf("%.2f", n_flag / n_w2),
+    " rows per Wave 2 respondent (N = ", n_w2, ")."
+  ),
+  paste0(
+    "- Person-level on that flag: ",
+    sprintf("%.1f%%", 100 * mean(n_flag_person$n_flag >= 1)),
+    " with at least one; ",
+    sprintf("%.1f%%", 100 * mean(n_flag_person$n_flag < 3)),
+    " with fewer than 3; mean ",
+    sprintf("%.2f", mean(n_flag_person$n_flag)), "."
+  ),
+  paste0(
+    "- Mean share of Wave 2 videos that are repeats: ",
+    sprintf("%.1f%%", 100 * mean(share_w2)),
+    ".",
+    if (n_drop_w2 > 0) {
+      paste0(
+        " Excludes ", n_drop_w2,
+        " respondent(s) with 0 Wave 2 videos."
+      )
+    } else {
+      ""
+    }
+  ),
+  paste0(
+    "- Median share: ",
+    sprintf("%.1f%%", 100 * median(share_w2)), "."
+  ),
+  paste0(
+    "- 90th percentile: ",
+    sprintf("%.1f%%", 100 * unname(quantile(share_w2, 0.9))),
+    " (90% of respondents saw fewer than this share as repeats)."
+  ),
+  paste0(
+    "- Wave 1 analogue (share of Wave 1 videos that reappear in Wave 2): mean ",
+    sprintf("%.1f%%", 100 * mean(share_w1)),
+    "; higher than Wave 2 because Wave 1 diets are smaller."
+  )
+))
+```
+
+Histogram of that person-level Wave 2 share.
+
+```{r}
+#| label: repeated-videos-w2-share-hist
+#| fig-cap: "Share of each person's Wave 2 videos that are repeats from Wave 1."
+
+share_med <- median(share_w2)
+share_p90 <- unname(quantile(share_w2, 0.9))
+share_zero <- mean(share_w2 == 0)
+
+p_w2_repeat_share <- tibble(share = share_w2) |>
+  ggplot(aes(x = share)) +
+  geom_histogram(
+    binwidth = 0.02,
+    boundary = 0,
+    closed = "left",
+    fill = "grey70",
+    color = "white"
+  ) +
+  geom_vline(xintercept = share_med, linetype = "dashed") +
+  geom_vline(xintercept = share_p90, linetype = "dotted") +
+  scale_x_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    breaks = seq(0, 1, by = 0.1)
+  ) +
+  labs(
+    title = "Wave 2 repeat share",
+    subtitle = "Distinct videos also seen in Wave 1 (respondents in both waves)",
+    x = "Share of Wave 2 feed that is repeats",
+    y = "Respondents"
+  ) +
+  annotate(
+    "text",
+    x = 0,
+    y = Inf,
+    label = paste0(sprintf("%.0f%%", 100 * share_zero), " had no repeats"),
+    hjust = 0,
+    vjust = 2.8,
+    size = 3
+  ) +
+  annotate(
+    "text",
+    x = share_med,
+    y = Inf,
+    label = paste0("Median ", sprintf("%.0f%%", 100 * share_med)),
+    hjust = -0.08,
+    vjust = 1.4,
+    size = 3
+  ) +
+  annotate(
+    "text",
+    x = share_p90,
+    y = Inf,
+    label = paste0("90th percentile ", sprintf("%.0f%%", 100 * share_p90)),
+    hjust = -0.05,
+    vjust = 1.4,
+    size = 3
+  ) +
+  theme_bw(base_size = 10)
+
+print(p_w2_repeat_share)
+```
 
 
 # Paper
@@ -694,6 +916,154 @@ write_fig(
   width = 12,
   height = 8,
   publish = paper_pdf("fig_2_party_partisanship")
+)
+```
+
+We test the joint hypothesis that sender-party treatment-effect contrasts are all zero (no variation across parties) in the overall sample and in the partisan and non-partisan samples.
+
+```{r}
+#| label: fig-2-party-wald
+
+# Same spec as fit_lin_party_feols: demeaned party dummies, video FE, cluster ID.
+# H0: all workshop_Treatment:pdm_* interactions are 0 (effects equal across senders).
+wald_party_te_equal <- function(df, outcome_var, party_levels, party_code_map,
+                                ref_party = party_levels[length(party_levels)]) {
+  interact_parties <- setdiff(party_levels, ref_party)
+  df_m <- df |>
+    filter(!is.na(.data[[outcome_var]]), !is.na(party), party %in% party_levels) |>
+    mutate(party = factor(party, levels = party_levels))
+
+  for (p in interact_parties) {
+    raw <- as.integer(df_m$party == p)
+    df_m[[paste0("pdm_", party_code_map[[p]])]] <- raw - mean(raw, na.rm = TRUE)
+  }
+
+  pdm_terms <- paste0("pdm_", party_code_map[interact_parties])
+  rhs <- paste0("workshop_Treatment * (", paste(pdm_terms, collapse = " + "), ")")
+  fit <- feols(
+    as.formula(paste(outcome_var, "~", rhs, "| video")),
+    data = df_m,
+    cluster = ~ID
+  )
+
+  expected_names <- paste0(
+    "workshop_Treatment:pdm_",
+    party_code_map[interact_parties]
+  )
+  interact_names <- grep(
+    "^workshop_Treatment:pdm_",
+    names(coef(fit)),
+    value = TRUE
+  )
+  stopifnot(setequal(interact_names, expected_names))
+
+  w <- wald(fit, keep = "^workshop_Treatment:pdm_", print = FALSE)
+  stat_is_chi2 <- isTRUE(is.na(w$df2)) || is.null(w$df2)
+  tibble(
+    stat = as.numeric(w$stat),
+    stat_name = if (stat_is_chi2) "chi2" else "F",
+    df1 = as.integer(w$df1),
+    df2 = if (stat_is_chi2) NA_real_ else as.numeric(w$df2),
+    p.value = as.numeric(w$p),
+    n_terms = length(interact_names),
+    terms = paste(interact_names, collapse = ", ")
+  )
+}
+
+fig2_party_wald <- lapply(fig2_sample_order, function(samp) {
+  df_s <- df_fig2
+  if (!is.null(fig2_samples[[samp]])) {
+    df_s <- df_s |> filter(partisan == fig2_samples[[samp]])
+  }
+  lapply(fig2_outcomes, function(Y) {
+    wald_party_te_equal(
+      df = df_s,
+      outcome_var = v_outcomes[[Y]],
+      party_levels = party_labels_az,
+      party_code_map = party_codes
+    ) |>
+      mutate(outcome = Y, sample = samp)
+  }) |>
+    bind_rows()
+}) |>
+  bind_rows() |>
+  mutate(
+    outcome = factor(outcome, levels = fig2_outcomes),
+    sample = factor(sample, levels = fig2_sample_order)
+  )
+
+stopifnot(!anyNA(fig2_party_wald$p.value), !anyNA(fig2_party_wald$stat))
+stopifnot(all(fig2_party_wald$n_terms > 0L))
+
+# Raw inspection: All sample, Like — joint test that party × treatment contrasts are 0
+df_like <- df_fig2 |>
+  filter(!is.na(videoLikep1r), !is.na(party), party %in% party_labels_az)
+df_like$pdm_afd    <- as.integer(df_like$party == "AfD")     - mean(df_like$party == "AfD")
+df_like$pdm_bsw    <- as.integer(df_like$party == "BSW")     - mean(df_like$party == "BSW")
+df_like$pdm_cdu    <- as.integer(df_like$party == "CDU/CSU") - mean(df_like$party == "CDU/CSU")
+df_like$pdm_fdp    <- as.integer(df_like$party == "FDP")     - mean(df_like$party == "FDP")
+df_like$pdm_gruene <- as.integer(df_like$party == "Grüne")   - mean(df_like$party == "Grüne")
+df_like$pdm_linke  <- as.integer(df_like$party == "Linke")   - mean(df_like$party == "Linke")
+
+```
+
+Wald test "by hand":
+
+```{r}
+
+wald(
+  feols(
+  videoLikep1r ~ workshop_Treatment * (pdm_afd + pdm_bsw + pdm_cdu +
+    pdm_fdp + pdm_gruene + pdm_linke) | video,
+  data = df_like,
+  cluster = ~ID),
+  c(
+    "workshop_Treatment:pdm_afd", "workshop_Treatment:pdm_bsw", "workshop_Treatment:pdm_cdu", "workshop_Treatment:pdm_fdp", "workshop_Treatment:pdm_gruene", "workshop_Treatment:pdm_linke"
+  )
+)
+```
+
+All tests:
+
+```{r}
+fmt_p <- function(p) {
+  ifelse(p < 0.001, "<0.001", sprintf("%.3f", p))
+}
+
+df2_note <- fig2_party_wald |>
+  summarise(df2 = unique(df2), .by = sample) |>
+  mutate(txt = paste0(sample, " ", round(df2))) |>
+  pull(txt) |>
+  paste(collapse = "; ")
+
+fig2_wald_table <- fig2_party_wald |>
+  mutate(
+    F = sprintf("%.2f", stat),
+    p = fmt_p(p.value)
+  ) |>
+  select(outcome, sample, F, p) |>
+  tidyr::pivot_wider(
+    names_from = sample,
+    values_from = c(F, p),
+    names_glue = "{sample} {.value}"
+  ) |>
+  select(
+    Outcome = outcome,
+    `All F`, `All p`,
+    `Partisan F`, `Partisan p`,
+    `Non-partisan F`, `Non-partisan p`
+  )
+
+knitr::kable(
+  fig2_wald_table,
+  align = c("l", rep("r", 6)),
+  caption = paste0(
+    "Joint cluster-robust Wald tests that party × treatment interactions ",
+    "are zero (Fig. 2 specification; video FE, SEs clustered by respondent). ",
+    "H0: workshop_Treatment:pdm_afd = pdm_bsw = pdm_cdu = pdm_fdp = ",
+    "pdm_gruene = pdm_linke = 0 (SPD omitted). F(6, df2) with df2: ",
+    df2_note, "."
+  )
 )
 ```
 
@@ -1266,28 +1636,28 @@ write_type_contrast(
   "tab_s5_emo_vs_neutral_like",
   "Emotional vs politically neutral: Like (Wave 1). Video FE; SEs clustered by respondent.",
   "tab:compare_emotional_vs_neutral_like",
-  "Table S5. Emotional vs politically neutral: Like (short-term). Video FE; SEs clustered by respondent."
+  "Table S5. Emotional vs politically neutral: Like (Wave 1). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_neu$Report,
   "tab_s6_emo_vs_neutral_report",
   "Emotional vs politically neutral: Report (Wave 1). Video FE; SEs clustered by respondent.",
   "tab:compare_emotional_vs_neutral_report",
-  "Table S6. Emotional vs politically neutral: Report (short-term). Video FE; SEs clustered by respondent."
+  "Table S6. Emotional vs politically neutral: Report (Wave 1). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_ent$Like,
   "tab_s7_emo_vs_ent_like",
   "Emotional vs entertainment: Like (Wave 1). Video FE; SEs clustered by respondent.",
   "tab:compare_emotional_vs_entertainment_like",
-  "Table S7. Emotional vs entertainment: Like (short-term). Video FE; SEs clustered by respondent."
+  "Table S7. Emotional vs entertainment: Like (Wave 1). Video FE; SEs clustered by respondent."
 )
 write_type_contrast(
   models_emo_ent$Report,
   "tab_s8_emo_vs_ent_report",
   "Emotional vs entertainment: Report (Wave 1). Video FE; SEs clustered by respondent.",
   "tab:compare_emotional_vs_entertainment_report",
-  "Table S8. Emotional vs entertainment: Report (short-term). Video FE; SEs clustered by respondent."
+  "Table S8. Emotional vs entertainment: Report (Wave 1). Video FE; SEs clustered by respondent."
 )
 ```
 
@@ -1544,7 +1914,7 @@ Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 df_w10_norepeat <- df_w10_no_repeated_videos
 cat(
-  "Wave 10 rows: ", nrow(datasets$wave_10),
+  "Wave 2 rows: ", nrow(datasets$wave_10),
   "; after dropping repeats (shown_both_waves == 0): ", nrow(df_w10_norepeat),
   "; dropped: ", nrow(datasets$wave_10) - nrow(df_w10_norepeat), "\n",
   sep = ""
@@ -1690,14 +2060,14 @@ write_afd_3way(
   "tab_s10_afd_3way_short",
   "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 1). Video FE; SEs clustered by respondent.",
   "tab:afd_video_3way_demeaned",
-  "Table S10. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, short-term). Video FE; SEs clustered by respondent."
+  "Table S10. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 1). Video FE; SEs clustered by respondent."
 )
 write_afd_3way(
   models_afd_3way_lt,
   "tab_s11_afd_3way_long",
   "Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 2). Video FE; SEs clustered by respondent.",
   "tab:afd_video_3way_demeaned_longterm",
-  "Table S11. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, long-term / wave 10). Video FE; SEs clustered by respondent."
+  "Table S11. Treatment × AfD supporter × AfD video (all demeaned): Like/Share/Bookmark/Report (emotional political videos, Wave 2). Video FE; SEs clustered by respondent."
 )
 ```
 
@@ -1752,7 +2122,7 @@ texreg::htmlreg(
   digits = 3,
   include.ci = FALSE,
   custom.model.names = c("All respondents", "AfD identifiers", "Non-AfD respondents"),
-  caption = "Table S12. Effect of digital literacy workshop on AfD identification (wave 10).",
+  caption = "Table S12. Effect of digital literacy workshop on AfD identification (Wave 2).",
   stars = texreg_stars
 )
 ```
@@ -1837,7 +2207,7 @@ write_fig(
 )
 ```
 
-## Fig. S11. Change in party identification, wave 1 to wave 2, full sample
+## Fig. S11. Change in party identification, Wave 1 to Wave 2, full sample
 
 Stem: `fig_s11_pid_transitions`. Figs. S12–S13 use the same transition construction for treatment and control.
 
@@ -1925,7 +2295,7 @@ pid_overall <- build_pid_lodes(df_w9_w10)
 
 ```{r}
 #| label: fig-s11-format
-#| fig-cap: "Fig. S11. Change in party identification, wave 1 to wave 2, full sample."
+#| fig-cap: "Fig. S11. Change in party identification, Wave 1 to Wave 2, full sample."
 fig_s11 <- plot_pid_alluvial(
   pid_overall$lodes, pid_overall$party_cols,
   "Party identification transitions: Wave 1 \u2192 Wave 2"
@@ -1943,13 +2313,13 @@ write_fig(
 pid_treat <- build_pid_lodes(df_w9_w10 |> filter(workshop == 1))
 ```
 
-## Fig. S12. Change in party identification, wave 1 to wave 2, treatment group
+## Fig. S12. Change in party identification, Wave 1 to Wave 2, treatment group
 
 Stem: `fig_s12_pid_transitions_treat`.
 
 ```{r}
 #| label: fig-s12-format
-#| fig-cap: "Fig. S12. Change in party identification, wave 1 to wave 2, treatment group."
+#| fig-cap: "Fig. S12. Change in party identification, Wave 1 to Wave 2, treatment group."
 fig_s12 <- plot_pid_alluvial(
   pid_treat$lodes, pid_treat$party_cols,
   "Party identification transitions (treatment)"
@@ -1967,13 +2337,13 @@ write_fig(
 pid_control <- build_pid_lodes(df_w9_w10 |> filter(workshop == 0))
 ```
 
-## Fig. S13. Change in party identification, wave 1 to wave 2, control group
+## Fig. S13. Change in party identification, Wave 1 to Wave 2, control group
 
 Stem: `fig_s13_pid_transitions_control`.
 
 ```{r}
 #| label: fig-s13-format
-#| fig-cap: "Fig. S13. Change in party identification, wave 1 to wave 2, control group."
+#| fig-cap: "Fig. S13. Change in party identification, Wave 1 to Wave 2, control group."
 fig_s13 <- plot_pid_alluvial(
   pid_control$lodes, pid_control$party_cols,
   "Party identification transitions (control)"
