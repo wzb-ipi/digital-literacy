@@ -1090,10 +1090,7 @@ summarise_video_wave <- function(df, horizon) {
     mutate(horizon = horizon, .before = 1)
 }
 
-## Table S1. Descriptives on videos and video behavior
 
-```{r}
-#| label: tab-s1-video-descriptives
 
 video_summary <- function(d) {
   tibble(
@@ -1182,7 +1179,7 @@ tab_s1 |>
   writeLines(
     file.path(
       tab_dir,
-      "tab_s1_video_descriptives_new.tex"
+      "tab_s1_video_descriptives.tex"
     )
   )
 
