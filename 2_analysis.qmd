@@ -1071,6 +1071,126 @@ knitr::kable(
 
 Exhibits in compiled SI order. HTML figure labels start at **Fig. S2** (Fig. S1 is the static example-video PNG). Not created here: Table S1 (descriptives fragment), Table S2 (scraped-handle longtable), Fig. S1 (example-video PNG), workshop/interface screenshots, and Table S15 (PAP reconciliation, written in the SI `.tex`).
 
+## Table S1. Descriptives on videos and video behavior
+
+```{r}
+#| label: tab-s1-video-descriptives
+
+summarise_video_wave <- function(df, horizon) {
+  df |>
+    summarise(
+      respondents = n_distinct(ID, na.rm = TRUE),
+      video_observations = n(),
+      videos_per_respondent = video_observations / respondents,
+      like = mean(videoLikep1r, na.rm = TRUE),
+      share = mean(videoSharep1r, na.rm = TRUE),
+      bookmark = mean(videoBookmarkp1r, na.rm = TRUE),
+      report = mean(videoCommentTickedp1r, na.rm = TRUE)
+    ) |>
+    mutate(horizon = horizon, .before = 1)
+}
+
+## Table S1. Descriptives on videos and video behavior
+
+```{r}
+#| label: tab-s1-video-descriptives
+
+video_summary <- function(d) {
+  tibble(
+    Statistic = c(
+      "\\textbf{Overview}",
+      "\\hspace{0.3cm} Respondents",
+      "\\hspace{0.3cm} Number of videos per respondent",
+      "\\hspace{0.3cm} Watched videos",
+      "\\hspace{0.8cm} Political -- Anger",
+      "\\hspace{0.8cm} Political -- Fear",
+      "\\hspace{0.8cm} Political -- Superiority",
+      "\\hspace{0.8cm} Political -- Neutral",
+      "\\hspace{0.8cm} Entertainment",
+      "\\textbf{Video behavior}",
+      "\\hspace{0.3cm} Like",
+      "\\hspace{0.3cm} Share",
+      "\\hspace{0.3cm} Bookmark",
+      "\\hspace{0.3cm} Report"
+    ),
+
+    value = c(
+      "",
+      comma(n_distinct(d$ID)),
+      number(nrow(d) / n_distinct(d$ID), accuracy = 0.01),
+      comma(nrow(d)),
+      comma(sum(d$content == "political" &
+                  d$strategy == "anger", na.rm = TRUE)),
+      comma(sum(d$content == "political" &
+                  d$strategy == "fear", na.rm = TRUE)),
+      comma(sum(d$content == "political" &
+                  d$strategy == "superiority", na.rm = TRUE)),
+      comma(sum(d$content == "political" &
+                  d$strategy == "neutral", na.rm = TRUE)),
+      comma(sum(d$content == "entertainment", na.rm = TRUE)),
+      "",
+      comma(sum(d$videoLikep1r == 1, na.rm = TRUE)),
+      comma(sum(d$videoSharep1r == 1, na.rm = TRUE)),
+      comma(sum(d$videoBookmarkp1r == 1, na.rm = TRUE)),
+      comma(sum(d$videoCommentTickedp1r == 1, na.rm = TRUE))
+    )
+  )
+}
+
+tab_s1 <- bind_rows(
+  `Short-term` = video_summary(datasets$wave_9),
+  `Long-term`  = video_summary(datasets$wave_10),
+  .id = "period"
+) |>
+  pivot_wider(
+    names_from = period,
+    values_from = value
+  ) |>
+  mutate(
+    blank_left = "",
+    blank_right = ""
+  ) |>
+  select(
+    blank_left,
+    Statistic,
+    `Short-term`,
+    `Long-term`,
+    blank_right
+  )
+
+tab_s1 |>
+  knitr::kable(
+    format = "latex",
+    booktabs = TRUE,
+    linesep = "",
+    escape = FALSE,
+    col.names = c(
+      "",
+      "",
+      "\\mc{\\textbf{Short-term}}",
+      "\\mc{\\textbf{Long-term}}",
+      ""
+    ),
+    align = c(
+      "p{0.5cm}",
+      "p{6.5cm}",
+      "r",
+      "r",
+      "p{0.5cm}"
+    )
+  ) |>
+  writeLines(
+    file.path(
+      tab_dir,
+      "tab_s1_video_descriptives_new.tex"
+    )
+  )
+
+
+tab_s1
+```
+
+
 ## Table S3. Average Cohen's Kappa between coder pairings
 
 Mean pairwise Cohen's $\kappa$ across three coder rounds (anger, fear, superiority, and any-emotion vs none). Same statistic as `pre_survey_prep/3.3_Validted Political Set.ipynb`. Recomputed if `data/coder_ratings.rds` is present (wide panel with `anger_1`/`anger_2`/`anger_3`, and the same for fear and superiority); otherwise the published means from that notebook are written so this file still produces the SI `.tex`.
