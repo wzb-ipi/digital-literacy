@@ -34,7 +34,13 @@ execute:
   message: false
 ---
 
-Not generated here (static SI inputs): **Table S1** video descriptives; **Table S2** scraped handles; **Fig. S1** example-video PNG; workshop/interface screenshots; **Table S15** PAP–manuscript reconciliation (inline in `PNAS_SI_revised.tex`). Compiled SI figure numbers follow TeX captions; PDF stems can differ (Fig. S4 is `fig_s3_by_strategy`, Fig. S5 is `fig_s4_type_treat_did`, Fig. S15 is `fig_s16_fig1_nofe`).
+Not generated here (static SI inputs): 
+
+* **Table S1** video descriptives; 
+* **Table S2** scraped handles; 
+* **Fig. S1** example-video PNG; workshop/interface screenshots; 
+* **Table S15** PAP–manuscript reconciliation (inline in `PNAS_SI_revised.tex`). 
+
 
 # Setup
 
@@ -266,6 +272,8 @@ publish_tex <- function(stem) {
 
 ```{r}
 #| label: data-imports
+
+# datasets are prepared by 1_data.prep.qmd
 
 datasets <- list(
   wave_9  = read_rds("data/wave_9.rds"),

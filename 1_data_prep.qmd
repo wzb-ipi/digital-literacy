@@ -12,7 +12,7 @@ execute:
   message: false
 ---
 
-**Task**: Deidentifies and saves data for replication
+**This file**: Deidentifies and saves data for replication
 
 # Setup
 
@@ -35,13 +35,8 @@ data_path <- "../../../../HU/Covid Vaccine Allocation/4_data/"
 # respondents: 3,634 who participated in both waves
 # video: 400 possible videos for each respondent
 repeated_videos_w10 <- read_dta(
-   paste0(
-    data_path,
-  "wave_10/_temp/shown_videos_w9w10_-_LONG.dta"),
-  col_select = c(
-    ID_W9,
-    video,
-    both_viewed_watchtime_video_
+   paste0(data_path, "wave_10/_temp/shown_videos_w9w10_-_LONG.dta"),
+  col_select = c( ID_W9, video, both_viewed_watchtime_video_
   )
 ) |>
   transmute(
@@ -68,8 +63,7 @@ df_w10 <-
 
 
 # Edit figure labels here
-strategies <- 
-  c("political\n(emotional)", "political\n(neutral)")
+strategies <- c("political\n(emotional)", "political\n(neutral)")
 
 ps <- tibble(
   parties = c("AfD", "BSW", "CDU/CSU", "FDP", "Grüne", "Linke", "SPD"),
@@ -82,6 +76,8 @@ ps <- tibble(
 
 ```{r}
 #| label: data-helper-functions
+
+demean <- function(x) x - mean(x, na.rm = TRUE)
 
 # Video data preparation
 prepare_data <- function(df) {
@@ -127,20 +123,17 @@ prepare_data <- function(df) {
   df
 }
 
-demean <- function(x) x - mean(x, na.rm = TRUE)
 ```
 
 
 # Prepare and export data 
 
-This prepares the short-term (wave_9) and long-term (wave_10) datasets a single time.
+This prepares the short-term (wave_9) and long-term (wave_10) datasets.
 
 ```{r}
 #| label: dataprep
 prepare_data(df_09v)  |> write_rds("data/wave_9.rds")
 
-
-# NEW:
 wave_10_prepared <- prepare_data(df_10v)
 
 n_before_merge <- nrow(wave_10_prepared)
@@ -164,12 +157,12 @@ wave_10_prepared <- wave_10_prepared |>
     relationship = "one-to-one"
   )
 
-# Ensure every analysis row matched Ferdi's data
+# Ensure every analysis row matches previous data flag
 stopifnot(!anyNA(wave_10_prepared$shown_both_waves))
 
-wave_10_prepared |>
-  count(shown_both_waves, sort = TRUE)
+wave_10_prepared |> count(shown_both_waves, sort = TRUE)
 
+# save
 wave_10_prepared |>
   write_rds("data/wave_10.rds")
 
@@ -227,7 +220,7 @@ sample_overview |>
 
 # Retain video descriptions
 
-400 videos 
+Descriptions for 400 videos 
 
 ```{r}
 #| label: data-retain-video-descriptions
@@ -244,6 +237,8 @@ labels_df |> write_rds("data/labels_df.rds")
 ```
 
 ```{r}
+# recode specific helpers
+
 # Scale 0 - 1
 clean_ptv <- function(x, demean = FALSE) {
   x <- as.numeric(x)
@@ -513,7 +508,7 @@ df_w10 <- df_w10 %>%
 
 
 df_w10 <- df_w10 %>%
-  # keep only needed variables (including derived ones from mutate above)
+  # select needed variables
   dplyr::select(
     `_merge`,
     ID_W9,
