@@ -12,7 +12,7 @@ execute:
   message: false
 ---
 
-**This file**: Deidentifies and saves data for replication
+This file deidentifies and saves data for replication
 
 # Setup
 
@@ -29,7 +29,9 @@ pacman::p_load(tidyverse, haven, knitr)
 #| label: data-paths-and-labels
 
 # This file requires access to full data
-data_path <- "../../../../HU/Covid Vaccine Allocation/4_data/"
+
+# data_path <- "../../../../HU/Covid Vaccine Allocation/4_data/"
+data_path <- "../../Covid Vaccine Allocation/4_data/"
 
 # dataset contains every possible combination of respondent x video 
 # respondents: 3,634 who participated in both waves
@@ -59,7 +61,7 @@ df_10v <- read_dta(
 
 # Wave 9 and 10 combined data
 df_w10 <- 
-  read_dta("../../../../HU/Covid Vaccine Allocation/4_data/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta") 
+  read_dta(paste0(data_path, "/wave_10/merged/144461 HU Berlin Impftracker Welle 10 - FINAL_Destring_-_Merged_Respondents_Enriched.dta")) 
 
 
 # Edit figure labels here

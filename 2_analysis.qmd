@@ -7,6 +7,7 @@ format:
     number-sections: true
     embed-resources: true
     code-fold: true
+    code-tools: true
     toc: true
     include-in-header:
       text: |
@@ -34,13 +35,48 @@ execute:
   message: false
 ---
 
-Not generated here (static SI inputs): 
+Notebook structure edited with LLM assistance (Grok 4.7). The specifications below were checked against `paper_pnas_final.tex` and `PNAS_SI_revised.tex`.
 
-* **Table S1** video descriptives; 
-* **Table S2** scraped handles; 
-* **Fig. S1** example-video PNG; workshop/interface screenshots; 
-* **Table S15** PAP–manuscript reconciliation (inline in `PNAS_SI_revised.tex`). 
+This file produces the key tables and figures. For the key quantities it also gives the code that exposes the analytic decisions, marked with 💡, and prints the unformatted output of that code.
 
+## Exhibits
+
+Compiled numbers below are the SI counters (`S` plus the caption order). File stems match those numbers. Items with no generation chunk are static inputs in the Overleaf folder. The sample overview has no caption, so it is unnumbered. Workshop screenshots and the four video-intro screenshots have no captions, so they take no number.
+
+| Compiled | Chunk | File | In this file |
+|---|---|---|---|
+| Sample overview (unnumbered) | `tab-sample-overview` | `outputs/tab_sample_overview.tex` | Yes |
+| Figure 1 | `fig-1-analysis`, `fig-1-by-hand`, `fig-1-format` | `outputs/fig_1_engagement.pdf` | Yes |
+| Figure 2 | `fig-2-analysis`, `fig-2-by-hand`, `fig-2-format` | `outputs/fig_2_party_partisanship.pdf` | Yes |
+| Figure S1 | — | `sn-figs/fig_s1_example_video.png` | No. Static PNG |
+| Figure S2 | `fig-s2-analysis` | `outputs/fig_s2_platform_comments.pdf` | Yes |
+| Figure S3 | `fig-s3-outcome-levels-analysis` | `outputs/fig_s3_outcome_levels_treat_control.pdf` | Yes |
+| Figure S4 | `fig-s4-by-strategy-analysis` | `outputs/fig_s4_by_strategy.pdf` | Yes |
+| Figure S5 | `fig-s5-analysis` | `outputs/fig_s5_type_treat_did.pdf` | Yes |
+| Figure S6 | `fig-s6-analysis` | `outputs/fig_s6_attrition_covariates.pdf` | Yes |
+| Figure S7 | `fig-s7-analysis` | `outputs/fig_s7_attrition_interaction.pdf` | Yes |
+| Figure S8 | `fig-s8-analysis` | `outputs/fig_s8_fig1_nonattriters.pdf` | Yes |
+| Figure S9 | `fig-s9-analysis` | `outputs/fig_s9_longterm_no_repeat.pdf` | Yes |
+| Figure S10 | `fig-s10-analysis` | `outputs/fig_s10_pid_by_prior.pdf` | Yes |
+| Figure S11 | `fig-s11-analysis` | `outputs/fig_s11_pid_transitions.pdf` | Yes |
+| Figure S12 | `fig-s12-analysis` | `outputs/fig_s12_pid_transitions_treat.pdf` | Yes |
+| Figure S13 | `fig-s13-analysis` | `outputs/fig_s13_pid_transitions_control.pdf` | Yes |
+| Figure S14 | `fig-s14-analysis`, `fig-s14-by-hand` | `outputs/fig_s14_ptv.pdf` | Yes |
+| Figure S15 | `fig-s15-analysis` | `outputs/fig_s15_fig1_nofe.pdf` | Yes |
+| Table S1 | `tab-s1-video-descriptives` | `outputs/tab_s1_video_descriptives.tex` | Yes |
+| Table S2 | — | `sn-tables/tab_s2_scraped_handles.tex` | No. Static longtable |
+| Table S3 | `tab-s3-analysis` | `outputs/tab_s3_cohens_kappa.tex` | Yes |
+| Table S4 | — | `sn-tables/tab_s4_strategy_by_party_combined.tex` | No. This file writes experiment-sample counts only (`outputs/tab_s4_strategy_by_party.tex`). |
+| Tables S5–S8 | `tab-s5-s8-analysis` | `outputs/tab_s5` … `tab_s8` | Yes |
+| Table S9 | `tab-s9-analysis` | `outputs/tab_s9_attrition.tex` | Yes |
+| Tables S10–S11 | `tab-s10-s11-analysis`, `tab-s10-by-hand` | `outputs/tab_s10_afd_3way_short.tex`, `tab_s11_afd_3way_long.tex` | Yes |
+| Table S12 | `tab-s12-analysis`, `tab-s12-by-hand` | `outputs/tab_s12_afd_identification.tex` | Yes |
+| Table S13 | `tab-s13-analysis` | `outputs/tab_s13_pap_h1a.tex` | Yes |
+| Table S14 | `tab-s14-analysis` | `outputs/tab_s14_outcome_cors.tex` | Yes |
+| Table S15 | — | caption written in `PNAS_SI_revised.tex` | No. PAP–manuscript reconciliation |
+
+
+The export section writes `outputs/key_numbers.tex` and `outputs/analysis.RData`. The manuscript inputs the first of those. Regenerated figures and tables in this file also go to `outputs/`, and copies are written into the Overleaf `figs/`, `sn-figs/`, and `sn-tables/` folders.
 
 # Setup
 
@@ -77,9 +113,9 @@ strategies <- c("political\n(emotional)", "political\n(neutral)")
 
 est_dir <- "ests"
 gg_dir  <- "ggs"
-fig_dir <- "figs"
-tab_dir <- "tabs"
-paper_root <- "../TikTok_PNAS"
+fig_dir <- "outputs"
+tab_dir <- "outputs"
+paper_root <- "../TikTok_overleaf"
 
 v_outcomes <- c(
   "Like" = "videoLikep1r",
@@ -300,7 +336,12 @@ tibble(
 df_w9_w10  <- read_rds("data/df_w9_w10.rds")|>
   mutate(citysize = as.numeric(citysize))
 
-comments_df <-read.csv("data/comment_classification.csv")
+comments_df <- read.csv("data/comment_classification.csv")
+coder_ratings <- if (file.exists("data/coder_ratings.rds")) {
+  read_rds("data/coder_ratings.rds")
+} else {
+  NULL
+}
 
 # covariates
 
@@ -448,6 +489,7 @@ Summaries:
 
 Exhibits in manuscript order. Each item has an analysis chunk (estimates) and a formatting chunk (figure/table).
 
+<!-- rep: id="tab_sample_overview" type="table" -->
 ## Sample Overview
 ```{r}
 #| label: tab-sample-overview
@@ -488,6 +530,7 @@ knitr::kable(
 
 
 
+<!-- rep: id="fig_1_engagement" type="figure" paper="Figure 1" -->
 ## Fig. 1. Effects of the digital literacy workshop on engagement with TikTok-style videos.
 
 Pooled Wave 1 and Wave 2 ATEs on like, report, share, bookmark, skip, and watch time, by content type. Video FE; SEs clustered by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time). Stem: `fig_1_engagement`.
@@ -503,6 +546,66 @@ estimates_fig1 <- bind_rows(
   estimate_pooled_ates(datasets$wave_10, fig1_outcomes) |>
     mutate(horizon = "Wave 2")
 )
+```
+
+💡 The primary estimand, written out rather than only inside the helper. Video fixed effects; standard errors clustered by respondent. Wave 1, emotionally manipulative political videos.
+
+```r
+feols(videoLikep1r ~ workshop_Treatment | video, cluster = ~ID)
+feols(videoCommentTickedp1r ~ workshop_Treatment | video, cluster = ~ID)
+feols(videoBookmarkp1r ~ workshop_Treatment | video, cluster = ~ID)
+```
+
+```{r}
+#| label: fig-1-by-hand
+
+# [!] Primary estimand. Video fixed effects; standard errors clustered by respondent.
+# Wave 1, emotionally manipulative political videos.
+emo_w1 <- datasets$wave_9 |>
+  filter(strategy_2 == strategies[1])
+
+like_w1_hand <- feols(
+  videoLikep1r ~ workshop_Treatment | video,
+  data = emo_w1,
+  cluster = ~ID
+)
+report_w1_hand <- feols(
+  videoCommentTickedp1r ~ workshop_Treatment | video,
+  data = emo_w1,
+  cluster = ~ID
+)
+bookmark_w1_hand <- feols(
+  videoBookmarkp1r ~ workshop_Treatment | video,
+  data = emo_w1,
+  cluster = ~ID
+)
+
+# Same three coefficients from the helper, for a direct check.
+helper_check <- estimates_fig1 |>
+  filter(horizon == "Wave 1", strategy == strategies[1], outcome %in% c("Like", "Report", "Bookmark")) |>
+  select(outcome, estimate)
+
+hand_check <- tibble(
+  outcome = c("Like", "Report", "Bookmark"),
+  estimate = c(
+    coef(like_w1_hand)[["workshop_Treatment"]],
+    coef(report_w1_hand)[["workshop_Treatment"]],
+    coef(bookmark_w1_hand)[["workshop_Treatment"]]
+  )
+)
+stopifnot(all.equal(
+  helper_check |> arrange(outcome) |> pull(estimate),
+  hand_check |> arrange(outcome) |> pull(estimate)
+))
+
+baseline_w1 <- emo_w1 |>
+  filter(workshop_Treatment == 0) |>
+  summarise(
+    like_baseline = mean(videoLikep1r, na.rm = TRUE),
+    report_baseline = mean(videoCommentTickedp1r, na.rm = TRUE),
+    bookmark_baseline = mean(videoBookmarkp1r, na.rm = TRUE)
+  )
+baseline_w1
 ```
 
 ```{r}
@@ -550,9 +653,10 @@ write_fig(
 )
 ```
 
-## Fig. 2. By party and partisanship.
+<!-- rep: id="fig_2_party_partisanship" type="figure" paper="Figure 2" -->
+## Fig. 2. By party and co-partisanship.
 
-Conditional effects by party and sample. Emotionally manipulative political videos, Wave 1; everyone, partisans, and non-partisans. Super-columns: Engagement (like, report, share, bookmark) and Attention (skip, watch time). Stem: `fig_2_party_partisanship`.
+Conditional effects by sending party. Emotionally manipulative political videos, Wave 1. Colors are separate regressions: all respondents, co-partisans (the respondent supports the party that sent the video), and respondents who do not. Super-columns: Engagement (like, report, share, bookmark) and Attention (skip, watch time). Stem: `fig_2_party_partisanship`.
 
 ```{r}
 #| label: fig-2-analysis
@@ -618,7 +722,7 @@ fit_lin_party_feols <- function(df, outcome_var, party_levels, party_code_map,
   bind_rows(out_ate, out_parties) |> mutate(outcome_var = outcome_var)
 }
 
-fig2_samples <- list("All" = NULL, "Partisan" = 1L, "Non-partisan" = 0L)
+fig2_samples <- list("All" = NULL, "Co-partisan" = 1L, "Not co-partisan" = 0L)
 fig2_sample_order <- names(fig2_samples)
 fig2_sample_dodge_levels <- rev(fig2_sample_order)
 party_labels_az <- sort(names(party_codes))
@@ -657,7 +761,7 @@ estimates_fig2 <- lapply(fig2_sample_order, function(samp) {
 #| label: fig-2-format
 #| fig-width: 12
 #| fig-height: 8
-#| fig-cap: "Fig. 2. By party and partisanship."
+#| fig-cap: "Fig. 2. By party and co-partisanship. Co-partisan means the respondent supports the party that sent the video."
 
 dodge_fig2 <- position_dodge(width = 0.55)
 
@@ -710,8 +814,8 @@ fig2 <- estimates_fig2 |>
     x = "Average treatment effect",
     y = NULL,
     color = NULL,
-    title = "Conditional effects by party and sample",
-    subtitle = "Video FE; SEs clustered by respondent"
+    title = "Conditional effects by party and co-partisanship",
+    subtitle = "Co-partisan: respondent supports the sending party. Video FE; SEs clustered by respondent"
   ) +
   theme_bw(base_size = 10) +
   theme(
@@ -819,20 +923,65 @@ df_like$pdm_linke  <- as.integer(df_like$party == "Linke")   - mean(df_like$part
 
 ```
 
-Wald test "by hand":
+💡 Wald test, written out.
 
 ```{r}
 
-wald(
-  feols(
+like_party_hand <- feols(
   videoLikep1r ~ workshop_Treatment * (pdm_afd + pdm_bsw + pdm_cdu +
     pdm_fdp + pdm_gruene + pdm_linke) | video,
   data = df_like,
-  cluster = ~ID),
+  cluster = ~ID
+)
+wald(
+  like_party_hand,
   c(
-    "workshop_Treatment:pdm_afd", "workshop_Treatment:pdm_bsw", "workshop_Treatment:pdm_cdu", "workshop_Treatment:pdm_fdp", "workshop_Treatment:pdm_gruene", "workshop_Treatment:pdm_linke"
+    "workshop_Treatment:pdm_afd", "workshop_Treatment:pdm_bsw", "workshop_Treatment:pdm_cdu",
+    "workshop_Treatment:pdm_fdp", "workshop_Treatment:pdm_gruene", "workshop_Treatment:pdm_linke"
   )
 )
+```
+
+💡 AfD liking in the all-respondent regression. Reference party is SPD. For interacted party j, the weight on the treatment interaction is (1 - pi_j) for AfD and -pi_j for every other party.
+
+```r
+feols(
+  videoLikep1r ~ workshop_Treatment * (pdm_afd + pdm_bsw + pdm_cdu +
+    pdm_fdp + pdm_gruene + pdm_linke) | video,
+  cluster = ~ID
+)
+```
+
+```{r}
+#| label: fig-2-by-hand
+
+# [!] AfD liking effect in the all-respondent regression above.
+# Reference party is SPD. For interacted party j, the weight on
+# workshop:pdm_j is (1 - pi_j) for AfD and -pi_j for every other party.
+b_like <- coef(like_party_hand)
+pi_party <- c(
+  afd = mean(df_like$party == "AfD"),
+  bsw = mean(df_like$party == "BSW"),
+  cdu = mean(df_like$party == "CDU/CSU"),
+  fdp = mean(df_like$party == "FDP"),
+  gruene = mean(df_like$party == "Grüne"),
+  linke = mean(df_like$party == "Linke")
+)
+c_afd <- c(
+  "workshop_Treatment" = 1,
+  "workshop_Treatment:pdm_afd" = unname(1 - pi_party["afd"]),
+  "workshop_Treatment:pdm_bsw" = unname(-pi_party["bsw"]),
+  "workshop_Treatment:pdm_cdu" = unname(-pi_party["cdu"]),
+  "workshop_Treatment:pdm_fdp" = unname(-pi_party["fdp"]),
+  "workshop_Treatment:pdm_gruene" = unname(-pi_party["gruene"]),
+  "workshop_Treatment:pdm_linke" = unname(-pi_party["linke"])
+)
+afd_like_hand <- sum(c_afd * b_like[names(c_afd)])
+afd_like_helper <- estimates_fig2 |>
+  filter(outcome == "Like", sample == "All", party == "AfD") |>
+  pull(estimate)
+stopifnot(abs(afd_like_hand - afd_like_helper) < 1e-8)
+c(afd_like = afd_like_hand)
 ```
 
 All tests:
@@ -862,8 +1011,8 @@ fig2_wald_table <- fig2_party_wald |>
   select(
     Outcome = outcome,
     `All F`, `All p`,
-    `Partisan F`, `Partisan p`,
-    `Non-partisan F`, `Non-partisan p`
+    `Co-partisan F`, `Co-partisan p`,
+    `Not co-partisan F`, `Not co-partisan p`
   )
 
 knitr::kable(
@@ -881,12 +1030,14 @@ knitr::kable(
 
 # Supporting Information
 
-Exhibits in compiled SI order. HTML figure labels start at **Fig. S2** (Fig. S1 is the static example-video PNG). Not created here: Table S1 (descriptives fragment), Table S2 (scraped-handle longtable), Fig. S1 (example-video PNG), workshop/interface screenshots, and Table S15 (PAP reconciliation, written in the SI `.tex`).
+Exhibits in compiled SI order. HTML figure labels start at **Fig. S2** (Fig. S1 is the static example-video PNG). Not created here: Table S2 (scraped-handle longtable), Fig. S1 (example-video PNG), workshop/interface screenshots, and Table S15 (PAP reconciliation, written in the SI `.tex`).
 
+<!-- rep: id="tab_s1_video_descriptives" type="table" paper="Table S1" -->
 ## Table S1. Descriptives on videos and video behavior
 
 ```{r}
 #| label: tab-s1-video-descriptives
+#| results: asis
 
 summarise_video_wave <- function(df, horizon) {
   df |>
@@ -907,20 +1058,20 @@ summarise_video_wave <- function(df, horizon) {
 video_summary <- function(d) {
   tibble(
     Statistic = c(
-      "\\textbf{Overview}",
-      "\\hspace{0.3cm} Respondents",
-      "\\hspace{0.3cm} Number of videos per respondent",
-      "\\hspace{0.3cm} Watched videos",
-      "\\hspace{0.8cm} Political -- Anger",
-      "\\hspace{0.8cm} Political -- Fear",
-      "\\hspace{0.8cm} Political -- Superiority",
-      "\\hspace{0.8cm} Political -- Neutral",
-      "\\hspace{0.8cm} Entertainment",
-      "\\textbf{Video behavior}",
-      "\\hspace{0.3cm} Like",
-      "\\hspace{0.3cm} Share",
-      "\\hspace{0.3cm} Bookmark",
-      "\\hspace{0.3cm} Report"
+      "Overview",
+      "Respondents",
+      "Number of videos per respondent",
+      "Watched videos",
+      "Political -- Anger",
+      "Political -- Fear",
+      "Political -- Superiority",
+      "Political -- Neutral",
+      "Entertainment",
+      "Video behavior",
+      "Like",
+      "Share",
+      "Bookmark",
+      "Report"
     ),
 
     value = c(
@@ -967,7 +1118,24 @@ tab_s1 <- bind_rows(
     blank_right
   )
 
+s1_tex_label <- c(
+  "Overview" = "\\textbf{Overview}",
+  "Respondents" = "\\hspace{0.3cm} Respondents",
+  "Number of videos per respondent" = "\\hspace{0.3cm} Number of videos per respondent",
+  "Watched videos" = "\\hspace{0.3cm} Watched videos",
+  "Political -- Anger" = "\\hspace{0.8cm} Political -- Anger",
+  "Political -- Fear" = "\\hspace{0.8cm} Political -- Fear",
+  "Political -- Superiority" = "\\hspace{0.8cm} Political -- Superiority",
+  "Political -- Neutral" = "\\hspace{0.8cm} Political -- Neutral",
+  "Entertainment" = "\\hspace{0.8cm} Entertainment",
+  "Video behavior" = "\\textbf{Video behavior}",
+  "Like" = "\\hspace{0.3cm} Like",
+  "Share" = "\\hspace{0.3cm} Share",
+  "Bookmark" = "\\hspace{0.3cm} Bookmark",
+  "Report" = "\\hspace{0.3cm} Report"
+)
 tab_s1 |>
+  mutate(Statistic = unname(s1_tex_label[Statistic])) |>
   knitr::kable(
     format = "latex",
     booktabs = TRUE,
@@ -995,11 +1163,25 @@ tab_s1 |>
     )
   )
 
-
-tab_s1
+knitr::kable(
+  tab_s1 |>
+    transmute(
+      Statistic = ifelse(
+        Statistic %in% c("Overview", "Video behavior"),
+        paste0("<b>", Statistic, "</b>"),
+        Statistic
+      ),
+      `Short-term`,
+      `Long-term`
+    ),
+  format = "html",
+  escape = FALSE,
+  caption = "Table S1. Descriptives on videos and video behavior"
+)
 ```
 
 
+<!-- rep: id="tab_s3_cohens_kappa" type="table" paper="Table S3" -->
 ## Table S3. Average Cohen's Kappa between coder pairings
 
 Mean pairwise Cohen's $\kappa$ across three coder rounds (anger, fear, superiority, and any-emotion vs none). Same statistic as `pre_survey_prep/3.3_Validted Political Set.ipynb`. Recomputed if `data/coder_ratings.rds` is present (wide panel with `anger_1`/`anger_2`/`anger_3`, and the same for fear and superiority); otherwise the published means from that notebook are written so this file still produces the SI `.tex`.
@@ -1023,7 +1205,6 @@ mean_pairwise_kappa <- function(c1, c2, c3) {
   mean(c(cohen_kappa(c1, c2), cohen_kappa(c1, c3), cohen_kappa(c2, c3)), na.rm = TRUE)
 }
 
-coder_path <- "data/coder_ratings.rds"
 kappa_src <- "pre_survey_prep/3.3_Validted Political Set.ipynb (published means)"
 kappa_s3 <- c(
   anger = 0.492,
@@ -1032,8 +1213,8 @@ kappa_s3 <- c(
   any_emotion = 0.404
 )
 
-if (file.exists(coder_path)) {
-  cr <- read_rds(coder_path)
+if (!is.null(coder_ratings)) {
+  cr <- coder_ratings
   need <- c(
     "anger_1", "anger_2", "anger_3",
     "fear_1", "fear_2", "fear_3",
@@ -1059,7 +1240,7 @@ if (file.exists(coder_path)) {
       any_em(cr$anger_3, cr$fear_3, cr$superiority_3)
     )
   )
-  kappa_src <- coder_path
+  kappa_src <- "data/coder_ratings.rds"
 }
 cat("Table S3 kappas from ", kappa_src, "\n", sep = "")
 print(round(kappa_s3, 3))
@@ -1102,6 +1283,7 @@ knitr::kable(
 )
 ```
 
+<!-- rep: id="tab_s4_strategy_by_party" type="table" paper="Table S4" -->
 ## Table S4. Distribution of emotion categories in the full political sample and survey video bundle
 
 Compiled SI Table S4 is `tab_s4_strategy_by_party_combined` (static TeX fragment). This chunk writes experiment-sample party × strategy counts (`tab_s4_strategy_by_party`). Party × `strategy_2` counts for the 400 experiment videos (unique `video` in Wave 1). Entertainment videos have blank party and form their own row; political videos are emotional or neutral.
@@ -1179,6 +1361,7 @@ knitr::kable(
 )
 ```
 
+<!-- rep: id="fig_s2_platform_comments" type="figure" paper="Figure S2" -->
 ## Fig. S2. Engagement with the platform.
 
 Stem: `fig_s2_platform_comments`. Comment classification of open-ended platform remarks (ecological validity).
@@ -1228,6 +1411,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="fig_s3_outcome_levels_treat_control" type="figure" paper="Figure S3" -->
 ## Fig. S3. Levels of outcomes by treatment condition.
 
 Stem: `fig_s3_outcome_levels_treat_control`. Table-order companion to manuscript Figure 1: mean Wave 1 and Wave 2 outcome levels by content type and treatment (not ATEs). Same 2×6 layout; all three content types; cluster-robust 95% CIs by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time). Each outcome column has its own x-scale.
@@ -1327,12 +1511,13 @@ write_fig(
 )
 ```
 
+<!-- rep: id="fig_s4_by_strategy" type="figure" paper="Figure S4" -->
 ## Fig. S4. Patterns conditional on strategy.
 
-Stem: `fig_s3_by_strategy` (filename retained; compiled SI number is S4). Wave 1 ATEs by emotional strategy (anger, fear, superiority) on like, report, share, bookmark, skip, and watch time. Video FE; SEs clustered by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time).
+Stem: `fig_s4_by_strategy`. Wave 1 ATEs by emotional strategy (anger, fear, superiority) on like, report, share, bookmark, skip, and watch time. Video FE; SEs clustered by respondent. Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 ```{r}
-#| label: fig-s3-by-strategy-analysis
+#| label: fig-s4-by-strategy-analysis
 
 s3_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 emotion_strats <- c("anger", "fear", "superiority")
@@ -1383,21 +1568,22 @@ fig_s3 <- estimates_s3 |>
   )
 
 write_fig(
-  stem = "fig_s3_by_strategy",
+  stem = "fig_s4_by_strategy",
   estimates = estimates_s3,
   plot = fig_s3,
   width = 12,
   height = 3.5,
-  publish = si_pdf("fig_s3_by_strategy")
+  publish = si_pdf("fig_s4_by_strategy")
 )
 ```
 
+<!-- rep: id="fig_s5_type_treat_did" type="figure" paper="Figure S5" -->
 ## Fig. S5. Differential effects for emotional political videos.
 
-Stem: `fig_s4_type_treat_did` (filename retained; compiled SI number is S5). Treatment × type interactions on all six outcomes (emotional vs politically neutral; emotional vs entertainment). Pairwise samples; video FE; cluster-robust 95% CIs by respondent. Companion to Tables S5–S8. Super-columns: Engagement (first four) and Attention (skip, watch time).
+Stem: `fig_s5_type_treat_did`. Treatment × type interactions on all six outcomes (emotional vs politically neutral; emotional vs entertainment). Pairwise samples; video FE; cluster-robust 95% CIs by respondent. Companion to Tables S5–S8. Super-columns: Engagement (first four) and Attention (skip, watch time).
 
 ```{r}
-#| label: fig-s4-analysis
+#| label: fig-s5-analysis
 
 outcome_order_did <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 
@@ -1466,15 +1652,16 @@ fig_s4_type_treat_did <- est_did |>
   )
 
 write_fig(
-  stem = "fig_s4_type_treat_did",
+  stem = "fig_s5_type_treat_did",
   estimates = est_did,
   plot = fig_s4_type_treat_did,
   width = 12,
   height = 5.5,
-  publish = si_pdf("fig_s4_type_treat_did")
+  publish = si_pdf("fig_s5_type_treat_did")
 )
 ```
 
+<!-- rep: id="tab_s5_s8_contrasts" type="table" paper="Tables S5–S8" -->
 ## Tables S5–S8. Emotional vs other content-type contrasts
 
 Wave 1 like and report: emotional vs politically neutral (Tables S5–S6) and emotional vs entertainment (Tables S7–S8). Video FE; cluster ID. Columns: ALL and sending parties.
@@ -1590,6 +1777,7 @@ write_type_contrast(
 )
 ```
 
+<!-- rep: id="fig_s6_attrition_covariates" type="figure" paper="Figure S6" -->
 ## Fig. S6. Attrition (0/1) regressed on standardized pre-treatment covariates
 
 Stem: `fig_s6_attrition_covariates`. Main-effect linear probability models.
@@ -1621,7 +1809,7 @@ results_main <- lapply(covs, function(v) {
 fig_s6 <- results_main |>
   ggplot(aes(x = estimate, y = forcats::fct_reorder(label, estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), orientation = "y", width = 0) +
   geom_point() +
   labs(
     title = "Covariate main effects on attrition (LPM)",
@@ -1640,6 +1828,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="tab_s9_attrition" type="table" paper="Table S9" -->
 ## Table S9. Attrition by treatment condition
 
 ```{r}
@@ -1723,6 +1912,7 @@ knitr::kable(
 )
 ```
 
+<!-- rep: id="fig_s7_attrition_interaction" type="figure" paper="Figure S7" -->
 ## Fig. S7. Attrition (0/1) regressed on the interaction between treatment and pre-treatment covariates
 
 Stem: `fig_s7_attrition_interaction`.
@@ -1750,7 +1940,7 @@ results_int <- lapply(covs, function(v) {
 fig_s7 <- results_int |>
   ggplot(aes(x = estimate, y = forcats::fct_reorder(label, estimate))) +
   geom_vline(xintercept = 0, linetype = "dashed") +
-  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), orientation = "y", width = 0) +
   geom_point() +
   labs(
     title = "Treatment × covariate interactions on attrition (LPM)",
@@ -1769,6 +1959,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="fig_s8_fig1_nonattriters" type="figure" paper="Figure S8" -->
 ## Fig. S8. Short-term pooled engagement effects among non-attriters
 
 Stem: `fig_s8_fig1_nonattriters`. Figure 1 Wave 1 companion, restricted to respondents retained in Wave 2. Same six outcomes and Engagement / Attention super-headers as Figure 1.
@@ -1832,6 +2023,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="fig_s9_longterm_no_repeat" type="figure" paper="Figure S9" -->
 ## Fig. S9. Long-term treatment effects excluding repeated video exposure
 
 Stem: `fig_s9_longterm_no_repeat`. Wave 2 ATEs after dropping respondent–video pairs already shown in both waves
@@ -1906,6 +2098,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="tab_s10_afd_3way" type="table" paper="Tables S10–S11" -->
 ## Tables S10–S11. AfD-specific triple interactions
 
 ```{r}
@@ -1955,6 +2148,32 @@ models_afd_3way_lt <- lapply(afd_3way_outcomes, function(Y) fit_afd_3way(df_afd_
   setNames(afd_3way_outcomes)
 ```
 
+💡 Liking in the demeaned triple interaction. The same formula is used for the other outcomes inside the helper.
+
+```r
+feols(
+  videoLikep1r ~ treatment_demeaned * AFD_supporter_demeaned * AFD_videos_demeaned | video,
+  cluster = ~ID
+)
+```
+
+```{r}
+#| label: tab-s10-by-hand
+
+# [!] Same specification as fit_afd_3way, written out for liking.
+like_afd_hand <- feols(
+  videoLikep1r ~ treatment_demeaned * AFD_supporter_demeaned * AFD_videos_demeaned | video,
+  data = df_afd_3way,
+  cluster = ~ID
+)
+stopifnot(all.equal(coef(like_afd_hand), coef(models_afd_3way$Like)))
+coef(like_afd_hand)[c(
+  "treatment_demeaned:AFD_videos_demeaned",
+  "treatment_demeaned:AFD_supporter_demeaned",
+  "treatment_demeaned:AFD_supporter_demeaned:AFD_videos_demeaned"
+)]
+```
+
 ```{r}
 #| label: tab-s10-s11-format
 #| results: 'asis'
@@ -2000,6 +2219,7 @@ write_afd_3way(
 )
 ```
 
+<!-- rep: id="tab_s12_afd_identification" type="table" paper="Table S12" -->
 ## Table S12. Effect of digital literacy workshop on AfD identification
 
 ```{r}
@@ -2023,6 +2243,27 @@ models_s12 <- list(
     data = df_w9_w10 |> filter(party_id_w9_afd == 0)
   )
 )
+```
+
+💡 Continued AfD identification among baseline AfD identifiers.
+
+```r
+lm_robust(party_id_w10_afd ~ workshop, data = identifiers)
+```
+
+```{r}
+#| label: tab-s12-by-hand
+
+# [!] Continued AfD identification among baseline AfD identifiers.
+id_afd_hand <- lm_robust(
+  party_id_w10_afd ~ workshop,
+  data = df_w9_w10 |> filter(party_id_w9_afd == 1)
+)
+stopifnot(all.equal(
+  coef(id_afd_hand)[["workshop"]],
+  coef(models_s12$conditional_afd)[["workshop"]]
+))
+coef(summary(id_afd_hand))["workshop", c("Estimate", "Std. Error", "Pr(>|t|)")]
 ```
 
 ```{r}
@@ -2056,6 +2297,7 @@ texreg::htmlreg(
 )
 ```
 
+<!-- rep: id="fig_s10_pid_by_prior" type="figure" paper="Figure S10" -->
 ## Fig. S10. Effect on party identification conditional on prior identification
 
 Stem: `fig_s10_pid_by_prior`.
@@ -2108,10 +2350,11 @@ fig_s10 <- maintained_results |>
   ggplot(aes(x = estimate, y = party, color = group)) +
   geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
   geom_point(position = position_dodge(width = 0.6), size = 2.5) +
-  geom_errorbarh(
+  geom_errorbar(
     aes(xmin = conf.low, xmax = conf.high),
+    orientation = "y",
     position = position_dodge(width = 0.6),
-    height = 0.2
+    width = 0.2
   ) +
   geom_text(
     aes(label = sprintf("%.3f (p = %.3f)", estimate, p.value), group = group),
@@ -2136,6 +2379,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="fig_s11_pid_transitions" type="figure" paper="Figure S11" -->
 ## Fig. S11. Change in party identification, Wave 1 to Wave 2, full sample
 
 Stem: `fig_s11_pid_transitions`. Figs. S12–S13 use the same transition construction for treatment and control.
@@ -2174,7 +2418,7 @@ build_pid_lodes <- function(df_input) {
     left_join(share_w9, by = c("Wave 2" = "Wave 1")) |>
     mutate(
       delta_pp = (s10 - s9) * 100,
-      label_right = sprintf("%s\n(%+0.2f pp)", `Wave 2`, delta_pp)
+      label_right = sprintf("%s (%+.1f pp)", `Wave 2`, delta_pp)
     ) |>
     select(`Wave 2`, label_right)
   lodes <- transitions |>
@@ -2201,19 +2445,43 @@ build_pid_lodes <- function(df_input) {
 }
 
 plot_pid_alluvial <- function(lodes, party_cols, title_text) {
+  # Labels sit outside the columns. Repulsion keeps small parties legible.
+  label_layer <- function(side, nudge, hjust) {
+    ggrepel::geom_text_repel(
+      data = lodes |> filter(x == side),
+      stat = "stratum",
+      aes(label = stratum_lab),
+      size = 3,
+      lineheight = 0.9,
+      direction = "y",
+      nudge_x = nudge,
+      hjust = hjust,
+      segment.size = 0.25,
+      segment.color = "grey40",
+      box.padding = 0.2,
+      point.padding = 0.05,
+      min.segment.length = 0,
+      max.overlaps = Inf,
+      seed = 1,
+      show.legend = FALSE
+    )
+  }
   ggplot(
     lodes,
-    aes(x = x, stratum = stratum, alluvium = alluvium, y = Share, fill = stratum, label = stratum_lab)
+    aes(x = x, stratum = stratum, alluvium = alluvium, y = Share, fill = stratum)
   ) +
-    geom_alluvium(alpha = 0.7, color = NA, knot.pos = 0.4) +
-    geom_stratum(fill = "white", color = "black", size = 0.3) +
-    geom_text(stat = "stratum", size = 4) +
+    geom_alluvium(alpha = 0.65, color = NA, knot.pos = 0.35, width = 0.22) +
+    geom_stratum(width = 0.22, fill = "white", color = "black", linewidth = 0.3) +
+    label_layer("Wave 1", nudge = -0.42, hjust = 1) +
+    label_layer("Wave 2", nudge = 0.42, hjust = 0) +
     scale_fill_manual(values = party_cols, guide = "none") +
-    scale_x_discrete(labels = c("Wave 1", "Wave 2"), expand = c(0.05, 0.05)) +
+    scale_x_discrete(labels = c("Wave 1", "Wave 2"), expand = expansion(add = c(0.85, 1.05))) +
     labs(x = NULL, y = NULL, title = title_text) +
+    coord_cartesian(clip = "off") +
     theme_minimal(base_size = 12) +
     theme(
       plot.title = element_text(hjust = 0.5, face = "bold"),
+      plot.margin = margin(10, 36, 10, 28),
       panel.grid = element_blank(),
       axis.text.y = element_blank()
     )
@@ -2233,6 +2501,8 @@ write_fig(
   stem = "fig_s11_pid_transitions",
   estimates = pid_overall,
   plot = fig_s11,
+  width = 9,
+  height = 7,
   publish = si_pdf("fig_s11_pid_transitions")
 )
 ```
@@ -2242,6 +2512,7 @@ write_fig(
 pid_treat <- build_pid_lodes(df_w9_w10 |> filter(workshop == 1))
 ```
 
+<!-- rep: id="fig_s12_pid_transitions_treat" type="figure" paper="Figure S12" -->
 ## Fig. S12. Change in party identification, Wave 1 to Wave 2, treatment group
 
 Stem: `fig_s12_pid_transitions_treat`.
@@ -2257,6 +2528,8 @@ write_fig(
   stem = "fig_s12_pid_transitions_treat",
   estimates = pid_treat,
   plot = fig_s12,
+  width = 9,
+  height = 7,
   publish = si_pdf("fig_s12_pid_transitions_treat")
 )
 ```
@@ -2266,6 +2539,7 @@ write_fig(
 pid_control <- build_pid_lodes(df_w9_w10 |> filter(workshop == 0))
 ```
 
+<!-- rep: id="fig_s13_pid_transitions_control" type="figure" paper="Figure S13" -->
 ## Fig. S13. Change in party identification, Wave 1 to Wave 2, control group
 
 Stem: `fig_s13_pid_transitions_control`.
@@ -2281,10 +2555,13 @@ write_fig(
   stem = "fig_s13_pid_transitions_control",
   estimates = pid_control,
   plot = fig_s13,
+  width = 9,
+  height = 7,
   publish = si_pdf("fig_s13_pid_transitions_control")
 )
 ```
 
+<!-- rep: id="fig_s14_ptv" type="figure" paper="Figure S14" -->
 ## Fig. S14. Effects of the digital literacy workshop on propensity to vote (PTV)
 
 Stem: `fig_s14_ptv`. By party and prior identification.
@@ -2292,16 +2569,28 @@ Stem: `fig_s14_ptv`. By party and prior identification.
 ```{r}
 #| label: fig-s14-analysis
 
+# Outcome is the post-treatment level. Pre-treatment PTV is demeaned inside
+# the estimation sample, so the workshop coefficient is the effect at that
+# sample's mean pre-treatment PTV.
+fit_ptv_group <- function(data, post_var, pre_var) {
+  d <- data |>
+    filter(is.finite(.data[[post_var]]), is.finite(.data[[pre_var]]), !is.na(workshop)) |>
+    mutate(pre_within = .data[[pre_var]] - mean(.data[[pre_var]]))
+  lm_robust(
+    stats::reformulate("workshop * pre_within", response = post_var),
+    data = d
+  )
+}
+
 estimate_ptv_by_id <- function(post_prefix) {
   party_codes |>
     lapply(function(party) {
       pre_var <- paste0("ptv_w9_pre_", party)
       post_var <- paste0(post_prefix, party)
       id_var <- paste0("party_id_w9_", party)
-      fml <- as.formula(paste0(post_var, " ~ workshop * ", pre_var))
-      m_all <- lm_robust(fml, data = df_w9_w10)
-      m_id <- lm_robust(fml, data = df_w9_w10 |> filter(.data[[id_var]] == 1))
-      m_non <- lm_robust(fml, data = df_w9_w10 |> filter(.data[[id_var]] == 0))
+      m_all <- fit_ptv_group(df_w9_w10, post_var, pre_var)
+      m_id <- fit_ptv_group(df_w9_w10 |> filter(.data[[id_var]] == 1), post_var, pre_var)
+      m_non <- fit_ptv_group(df_w9_w10 |> filter(.data[[id_var]] == 0), post_var, pre_var)
       bind_rows(
         tidy(m_all) |> filter(term == "workshop") |> mutate(group = "All respondents"),
         tidy(m_id) |> filter(term == "workshop") |> mutate(group = "Identifiers"),
@@ -2331,6 +2620,39 @@ estimates_ptv <- bind_rows(
   )
 ```
 
+💡 AfD identifiers. The outcome is post-treatment PTV. Pre-treatment PTV is demeaned inside this subset, so the workshop coefficient is the effect at the identifiers' mean.
+
+```r
+lm_robust(ptv_post_afd ~ workshop * pre_within, data = identifiers)
+```
+
+```{r}
+#| label: fig-s14-by-hand
+
+# [!] AfD identifiers. Post-treatment PTV; pre-treatment PTV demeaned in this subset.
+fit_afd_id_ptv <- function(post_var) {
+  d <- df_w9_w10 |>
+    filter(party_id_w9_afd == 1, is.finite(.data[[post_var]]), is.finite(ptv_w9_pre_afd)) |>
+    mutate(pre_within = ptv_w9_pre_afd - mean(ptv_w9_pre_afd))
+  lm_robust(stats::reformulate("workshop * pre_within", response = post_var), data = d)
+}
+ptv_afd_w1_hand <- fit_afd_id_ptv("ptv_w9_post_afd")
+ptv_afd_w2_hand <- fit_afd_id_ptv("ptv_w10_afd")
+hand_ptv <- tibble(
+  horizon = c("Wave 1", "Wave 2"),
+  estimate = c(
+    coef(ptv_afd_w1_hand)[["workshop"]],
+    coef(ptv_afd_w2_hand)[["workshop"]]
+  )
+)
+helper_ptv <- estimates_ptv |>
+  filter(party == "AfD", group == "Identifiers") |>
+  arrange(horizon) |>
+  select(horizon, estimate)
+stopifnot(all.equal(hand_ptv$estimate, helper_ptv$estimate))
+hand_ptv
+```
+
 ```{r}
 #| label: fig-s14-format
 #| fig-width: 10
@@ -2342,10 +2664,11 @@ fig_s14 <- estimates_ptv |>
   ggplot(aes(x = estimate, y = party, color = group)) +
   geom_vline(xintercept = 0, linetype = "dashed", alpha = 0.5) +
   geom_point(position = dodge_ptv, size = 2.5) +
-  geom_errorbarh(
+  geom_errorbar(
     aes(xmin = conf.low, xmax = conf.high),
+    orientation = "y",
     position = dodge_ptv,
-    height = 0.2
+    width = 0.2
   ) +
   geom_text(
     aes(label = sprintf("%.3f (p = %.3f)", estimate, p.value), group = group),
@@ -2353,7 +2676,7 @@ fig_s14 <- estimates_ptv |>
   ) +
   facet_grid(cols = vars(horizon)) +
   labs(
-    x = "Effect of workshop on PTV (0–1 scale)",
+    x = "Effect on post-treatment PTV at the group's mean pre-treatment PTV",
     y = "Party",
     color = NULL,
     title = "PTV effects of digital literacy workshop"
@@ -2374,6 +2697,7 @@ write_fig(
 )
 ```
 
+<!-- rep: id="tab_s13_pap_h1a" type="table" paper="Table S13" -->
 ## Table S13. PAP H1a reconciliation
 
 ```{r}
@@ -2435,6 +2759,7 @@ texreg::htmlreg(
 )
 ```
 
+<!-- rep: id="tab_s14_outcome_cors" type="table" paper="Table S14" -->
 ## Table S14. Pairwise outcome correlations
 
 Pairwise outcome correlations on emotionally manipulative political videos, Wave 1. Cells expanded to three rows ($r_T$, $r_C$, $\Delta$) with a rule after each outcome group. Compiled SI Table S15 (PAP reconciliation) is written in the SI `.tex`, not here.
@@ -2602,7 +2927,10 @@ tex <- c(
     "\\caption{Pairwise outcome correlations (emotionally manipulative political videos; ",
     "video--respondent rows, Wave 1 only). ",
     "Within each outcome, three rows report $r_{T}$, $r_{C}$, and $\\Delta=r_{T}-r_{C}$ ",
-    "with clustered-interaction stars ($*/**/***$) on $\\Delta$. Diagonal blank.}"
+    "with clustered-interaction stars ($*/**/***$) on $\\Delta$. Diagonal blank. ",
+    "The correlations are symmetric, and both triangles are shown. ",
+    "Stars on $\\Delta$ are not symmetric: each star is a clustered regression of one ",
+    "standardized outcome on the other interacted with treatment.}"
   ),
   "\\label{tab:outcome_cors_treat_ctrl}",
   "\\end{center}",
@@ -2612,19 +2940,20 @@ writeLines(tex, file.path(tab_dir, "tab_s14_outcome_cors.tex"))
 publish_tex("tab_s14_outcome_cors")
 knitr::kable(
   html_mat,
-  caption = "Table S14. Pairwise outcome correlations (emotionally manipulative political videos; video-respondent rows, Wave 1). Groups of three rows: r_T, r_C, Delta.",
+  caption = "Table S14. Pairwise outcome correlations (emotionally manipulative political videos; video-respondent rows, Wave 1). Groups of three rows: r_T, r_C, Delta. Correlations are symmetric and both triangles are shown. Stars on Delta are not: each star is a clustered regression of one standardized outcome on the other interacted with treatment.",
   align = c("l", "l", rep("c", length(oc_labs))),
   escape = FALSE,
   row.names = FALSE
 )
 ```
 
+<!-- rep: id="fig_s15_fig1_nofe" type="figure" paper="Figure S15" -->
 ## Fig. S15. Main engagement patterns without video fixed effects
 
-Stem: `fig_s16_fig1_nofe` (filename retained; compiled SI number is S15 because the former ellipses figure is commented out of the SI TeX). Figure 1 companion without video fixed effects (cluster ID retained). Six outcomes with Engagement | Attention super-headers, as in Figure 1.
+Stem: `fig_s15_fig1_nofe`. Figure 1 companion without video fixed effects (cluster ID retained). The former ellipses figure is commented out of the SI, so this is Figure S15. Six outcomes with Engagement | Attention super-headers, as in Figure 1.
 
 ```{r}
-#| label: fig-s16-analysis
+#| label: fig-s15-analysis
 
 s16_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 
@@ -2651,7 +2980,7 @@ estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
 ```
 
 ```{r}
-#| label: fig-s16-format
+#| label: fig-s15-format
 #| fig-width: 12
 #| fig-height: 5
 #| fig-cap: "Fig. S15. Main engagement patterns without video fixed effects (respondent-clustered standard errors retained). Companion to the manuscript Figure 1 specification."
@@ -2686,12 +3015,113 @@ fig_s16 <- estimates_s16 |>
   )
 
 write_fig(
-  stem = "fig_s16_fig1_nofe",
+  stem = "fig_s15_fig1_nofe",
   estimates = estimates_s16,
   plot = fig_s16,
   width = 12,
   height = 5,
-  publish = si_pdf("fig_s16_fig1_nofe")
+  publish = si_pdf("fig_s15_fig1_nofe")
+)
+```
+
+# Quoted sentences
+
+These are the manuscript sentences that use estimates from this file. The propensity-to-vote sentences report the effect on the post-treatment level, evaluated at each group's mean pre-treatment PTV.
+
+```{r}
+#| label: quoted-sentences
+#| results: 'asis'
+
+ptv_row <- function(horizon) {
+  estimates_ptv |>
+    filter(party == "AfD", group == "Identifiers", horizon == !!horizon)
+}
+p1 <- ptv_row("Wave 1")
+p2 <- ptv_row("Wave 2")
+id_est <- coef(id_afd_hand)[["workshop"]]
+id_p <- coef(summary(id_afd_hand))["workshop", "Pr(>|t|)"]
+bk <- coef(bookmark_w1_hand)[["workshop_Treatment"]]
+
+cat(
+  "\n\n> Contrary to expectations, we observe a significant increase in bookmarking of political videos (about ",
+  sprintf("%.1f", 100 * bk),
+  " percentage points).\n\n",
+  "> As shown in SI Figure S14, among AfD identifiers the estimated effect on post-treatment AfD PTV, evaluated at their mean pre-treatment PTV, is ",
+  sprintf("%+.3f", p1$estimate),
+  " on the 0–1 scale (p = ", sprintf("%.3f", p1$p.value),
+  "). In the follow-up wave three to six weeks later, the estimate is ",
+  sprintf("%+.3f", p2$estimate),
+  " (p = ", sprintf("%.3f", p2$p.value), ").\n\n",
+  "> Treated AfD identifiers are ",
+  sprintf("%.1f", -100 * id_est),
+  " percentage points less likely to report continued identification than AfD identifiers in the control group (p = ",
+  sprintf("%.3f", id_p), ").\n\n",
+  "> The estimated effect for liking is approximately ",
+  sprintf("%.0f", -100 * coef(like_w1_hand)[["workshop_Treatment"]]),
+  " percentage point, against a control baseline of about ",
+  sprintf("%.0f", 100 * baseline_w1$like_baseline),
+  " percent. Reporting increases by about ",
+  sprintf("%.1f", 100 * coef(report_w1_hand)[["workshop_Treatment"]]),
+  " percentage points, against a control baseline of about ",
+  sprintf("%.0f", 100 * baseline_w1$report_baseline),
+  " percent.\n\n",
+  "> For the median person, ",
+  sprintf("%.0f", 100 * quantile(repeats$share, 0.5)),
+  " percent of Wave 2 videos are repeats. The 90th percentile of that share is ",
+  sprintf("%.0f", 100 * quantile(repeats$share, 0.9)),
+  " percent.\n\n",
+  "> Attrition is ",
+  sprintf("%.1f", attrit_rows$rate[attrit_rows$arm == "Overall"]),
+  " percent overall.\n\n",
+  "> The all-respondent joint test that party-specific liking effects are equal has p = ",
+  sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Like" & fig2_party_wald$sample == "All"]),
+  ". The same test for reporting has p = ",
+  sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Report" & fig2_party_wald$sample == "All"]),
+  ".\n\n",
+  sep = ""
+)
+
+key_numbers <- c(
+  "% Generated by 2_analysis.qmd (quoted-sentences). Do not edit by hand.",
+  "% \\input{outputs/key_numbers.tex}",
+  sprintf("\\newcommand{\\bookmarkpp}{%s}", sprintf("%.1f", 100 * bk)),
+  sprintf("\\newcommand{\\ptvAfdIdWone}{%s}", sprintf("%+.3f", p1$estimate)),
+  sprintf("\\newcommand{\\ptvAfdIdWoneP}{%s}", sprintf("%.3f", p1$p.value)),
+  sprintf("\\newcommand{\\ptvAfdIdWtwo}{%s}", sprintf("%+.3f", p2$estimate)),
+  sprintf("\\newcommand{\\ptvAfdIdWtwoP}{%s}", sprintf("%.3f", p2$p.value)),
+  sprintf("\\newcommand{\\idAfdPp}{%s}", sprintf("%.1f", -100 * id_est)),
+  sprintf("\\newcommand{\\idAfdP}{%s}", sprintf("%.3f", id_p)),
+  sprintf("\\newcommand{\\likePp}{%s}", sprintf("%.0f", -100 * coef(like_w1_hand)[["workshop_Treatment"]])),
+  sprintf("\\newcommand{\\likeBaseline}{%s}", sprintf("%.0f", 100 * baseline_w1$like_baseline)),
+  sprintf("\\newcommand{\\reportPp}{%s}", sprintf("%.1f", 100 * coef(report_w1_hand)[["workshop_Treatment"]])),
+  sprintf("\\newcommand{\\reportBaseline}{%s}", sprintf("%.0f", 100 * baseline_w1$report_baseline)),
+  sprintf("\\newcommand{\\repeatMedian}{%s}", sprintf("%.0f", 100 * quantile(repeats$share, 0.5))),
+  sprintf("\\newcommand{\\repeatPninety}{%s}", sprintf("%.0f", 100 * quantile(repeats$share, 0.9))),
+  sprintf("\\newcommand{\\attritOverall}{%s}", sprintf("%.1f", attrit_rows$rate[attrit_rows$arm == "Overall"])),
+  sprintf("\\newcommand{\\waldLikeP}{%s}", sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Like" & fig2_party_wald$sample == "All"])),
+  sprintf("\\newcommand{\\waldReportP}{%s}", sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Report" & fig2_party_wald$sample == "All"]))
+)
+writeLines(key_numbers, "outputs/key_numbers.tex")
+writeLines(key_numbers, file.path(paper_root, "outputs", "key_numbers.tex"))
+```
+
+# Export
+
+Named estimate objects only. Respondent-level data stay in `data/`.
+
+```{r}
+#| label: export-analysis-objects
+
+save(
+  estimates_fig1,
+  estimates_fig2,
+  estimates_ptv,
+  fig2_party_wald,
+  baseline_w1,
+  hand_ptv,
+  attrit_rows,
+  kappa_s3,
+  file = "outputs/analysis.RData"
 )
 ```
 
