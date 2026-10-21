@@ -35,48 +35,48 @@ execute:
   message: false
 ---
 
-Notebook structure edited with LLM assistance (Grok 4.7). The specifications below were checked against `paper_pnas_final.tex` and `PNAS_SI_revised.tex`.
+Acknowledgement: Notebook structure edited with LLM assistance (Cursor, multiple models). LLM models used to structure code, run tests, and identify and fix bugs.
 
-This file produces the key tables and figures. For the key quantities it also gives the code that exposes the analytic decisions, marked with 💡, and prints the unformatted output of that code.
+This file produces the key tables and figures. For the key quantities it also gives code that exposes the analytic decisions, marked with 💡, and prints the unformatted output of that code.
 
-## Exhibits
+**Exhibits**
 
-Compiled numbers below are the SI counters (`S` plus the caption order). File stems match those numbers. Items with no generation chunk are static inputs in the Overleaf folder. The sample overview has no caption, so it is unnumbered. Workshop screenshots and the four video-intro screenshots have no captions, so they take no number.
+Mapping of objects created (or not) by this file:
 
 | Compiled | Chunk | File | In this file |
 |---|---|---|---|
-| Sample overview (unnumbered) | `tab-sample-overview` | `outputs/tab_sample_overview.tex` | Yes |
-| Figure 1 | `fig-1-analysis`, `fig-1-by-hand`, `fig-1-format` | `outputs/fig_1_engagement.pdf` | Yes |
-| Figure 2 | `fig-2-analysis`, `fig-2-by-hand`, `fig-2-format` | `outputs/fig_2_party_partisanship.pdf` | Yes |
+| Sample overview (unnumbered) | `tab-sample-overview` | `sn-tables/tab_sample_overview.tex` | Yes |
+| Figure 1 | `fig-1-analysis`, `fig-1-by-hand`, `fig-1-format` | `figs/fig_1_engagement.pdf` | Yes |
+| Figure 2 | `fig-2-analysis`, `fig-2-by-hand`, `fig-2-format` | `figs/fig_2_party_partisanship.pdf` | Yes |
 | Figure S1 | — | `sn-figs/fig_s1_example_video.png` | No. Static PNG |
-| Figure S2 | `fig-s2-analysis` | `outputs/fig_s2_platform_comments.pdf` | Yes |
-| Figure S3 | `fig-s3-outcome-levels-analysis` | `outputs/fig_s3_outcome_levels_treat_control.pdf` | Yes |
-| Figure S4 | `fig-s4-by-strategy-analysis` | `outputs/fig_s4_by_strategy.pdf` | Yes |
-| Figure S5 | `fig-s5-analysis` | `outputs/fig_s5_type_treat_did.pdf` | Yes |
-| Figure S6 | `fig-s6-analysis` | `outputs/fig_s6_attrition_covariates.pdf` | Yes |
-| Figure S7 | `fig-s7-analysis` | `outputs/fig_s7_attrition_interaction.pdf` | Yes |
-| Figure S8 | `fig-s8-analysis` | `outputs/fig_s8_fig1_nonattriters.pdf` | Yes |
-| Figure S9 | `fig-s9-analysis` | `outputs/fig_s9_longterm_no_repeat.pdf` | Yes |
-| Figure S10 | `fig-s10-analysis` | `outputs/fig_s10_pid_by_prior.pdf` | Yes |
-| Figure S11 | `fig-s11-analysis` | `outputs/fig_s11_pid_transitions.pdf` | Yes |
-| Figure S12 | `fig-s12-analysis` | `outputs/fig_s12_pid_transitions_treat.pdf` | Yes |
-| Figure S13 | `fig-s13-analysis` | `outputs/fig_s13_pid_transitions_control.pdf` | Yes |
-| Figure S14 | `fig-s14-analysis`, `fig-s14-by-hand` | `outputs/fig_s14_ptv.pdf` | Yes |
-| Figure S15 | `fig-s15-analysis` | `outputs/fig_s15_fig1_nofe.pdf` | Yes |
-| Table S1 | `tab-s1-video-descriptives` | `outputs/tab_s1_video_descriptives.tex` | Yes |
+| Figure S2 | `fig-s2-analysis` | `sn-figs/fig_s2_platform_comments.pdf` | Yes |
+| Figure S3 | `fig-s3-outcome-levels-analysis` | `sn-figs/fig_s3_outcome_levels_treat_control.pdf` | Yes |
+| Figure S4 | `fig-s4-by-strategy-analysis` | `sn-figs/fig_s4_by_strategy.pdf` | Yes |
+| Figure S5 | `fig-s5-analysis` | `sn-figs/fig_s5_type_treat_did.pdf` | Yes |
+| Figure S6 | `fig-s6-analysis` | `sn-figs/fig_s6_attrition_covariates.pdf` | Yes |
+| Figure S7 | `fig-s7-analysis` | `sn-figs/fig_s7_attrition_interaction.pdf` | Yes |
+| Figure S8 | `fig-s8-analysis` | `sn-figs/fig_s8_fig1_nonattriters.pdf` | Yes |
+| Figure S9 | `fig-s9-analysis` | `sn-figs/fig_s9_longterm_no_repeat.pdf` | Yes |
+| Figure S10 | `fig-s10-analysis` | `sn-figs/fig_s10_pid_by_prior.pdf` | Yes |
+| Figure S11 | `fig-s11-analysis` | `sn-figs/fig_s11_pid_transitions.pdf` | Yes |
+| Figure S12 | `fig-s12-analysis` | `sn-figs/fig_s12_pid_transitions_treat.pdf` | Yes |
+| Figure S13 | `fig-s13-analysis` | `sn-figs/fig_s13_pid_transitions_control.pdf` | Yes |
+| Figure S14 | `fig-s14-analysis`, `fig-s14-by-hand` | `sn-figs/fig_s14_ptv.pdf` | Yes |
+| Figure S15 | `fig-s15-analysis` | `sn-figs/fig_s15_fig1_nofe.pdf` | Yes |
+| Table S1 | `tab-s1-video-descriptives` | `sn-tables/tab_s1_video_descriptives.tex` | Yes |
 | Table S2 | — | `sn-tables/tab_s2_scraped_handles.tex` | No. Static longtable |
-| Table S3 | `tab-s3-analysis` | `outputs/tab_s3_cohens_kappa.tex` | Yes |
-| Table S4 | — | `sn-tables/tab_s4_strategy_by_party_combined.tex` | No. This file writes experiment-sample counts only (`outputs/tab_s4_strategy_by_party.tex`). |
-| Tables S5–S8 | `tab-s5-s8-analysis` | `outputs/tab_s5` … `tab_s8` | Yes |
-| Table S9 | `tab-s9-analysis` | `outputs/tab_s9_attrition.tex` | Yes |
-| Tables S10–S11 | `tab-s10-s11-analysis`, `tab-s10-by-hand` | `outputs/tab_s10_afd_3way_short.tex`, `tab_s11_afd_3way_long.tex` | Yes |
-| Table S12 | `tab-s12-analysis`, `tab-s12-by-hand` | `outputs/tab_s12_afd_identification.tex` | Yes |
-| Table S13 | `tab-s13-analysis` | `outputs/tab_s13_pap_h1a.tex` | Yes |
-| Table S14 | `tab-s14-analysis` | `outputs/tab_s14_outcome_cors.tex` | Yes |
+| Table S3 | `tab-s3-analysis` | `sn-tables/tab_s3_cohens_kappa.tex` | Yes |
+| Table S4 | — | `sn-tables/tab_s4_strategy_by_party_combined.tex` | No. This file writes experiment-sample counts only (`sn-tables/tab_s4_strategy_by_party.tex`). |
+| Tables S5–S8 | `tab-s5-s8-analysis` | `sn-tables/tab_s5` … `tab_s8` | Yes |
+| Table S9 | `tab-s9-analysis` | `sn-tables/tab_s9_attrition.tex` | Yes |
+| Tables S10–S11 | `tab-s10-s11-analysis`, `tab-s10-by-hand` | `sn-tables/tab_s10_afd_3way_short.tex`, `tab_s11_afd_3way_long.tex` | Yes |
+| Table S12 | `tab-s12-analysis`, `tab-s12-by-hand` | `sn-tables/tab_s12_afd_identification.tex` | Yes |
+| Table S13 | `tab-s13-analysis` | `sn-tables/tab_s13_pap_h1a.tex` | Yes |
+| Table S14 | `tab-s14-analysis` | `sn-tables/tab_s14_outcome_cors.tex` | Yes |
 | Table S15 | — | caption written in `PNAS_SI_revised.tex` | No. PAP–manuscript reconciliation |
 
 
-The export section writes `outputs/key_numbers.tex` and `outputs/analysis.RData`. The manuscript inputs the first of those. Regenerated figures and tables in this file also go to `outputs/`, and copies are written into the Overleaf `figs/`, `sn-figs/`, and `sn-tables/` folders.
+Main-text figures are written to `figs/`. SI figures are written to `sn-figs/`. Tables are written to `sn-tables/`. The export section also writes `assets/key_numbers.tex` and `outputs/analysis.RData`.
 
 # Setup
 
@@ -113,9 +113,9 @@ strategies <- c("political\n(emotional)", "political\n(neutral)")
 
 est_dir <- "ests"
 gg_dir  <- "ggs"
-fig_dir <- "outputs"
-tab_dir <- "outputs"
-paper_root <- "../TikTok_overleaf"
+fig_dir <- "figs"
+si_fig_dir <- "sn-figs"
+tab_dir <- "sn-tables"
 
 v_outcomes <- c(
   "Like" = "videoLikep1r",
@@ -268,10 +268,10 @@ write_tab_rds <- function(models, dest_stem) {
   replace_file(tmp, path)
 }
 
-write_fig <- function(stem, estimates, plot, width = NA, height = NA, publish = NULL) {
+write_fig <- function(stem, estimates, plot, dir, width = NA, height = NA) {
   est_path <- file.path(est_dir, paste0(stem, ".rds"))
   gg_path  <- file.path(gg_dir, paste0(stem, ".rds"))
-  pdf_path <- file.path(fig_dir, paste0(stem, ".pdf"))
+  pdf_path <- file.path(dir, paste0(stem, ".pdf"))
   tmp_near <- function(path) file.path(dirname(path), paste0(".", basename(path), ".tmp"))
   write_rds(estimates, tmp_near(est_path))
   replace_file(tmp_near(est_path), est_path)
@@ -287,18 +287,7 @@ write_fig <- function(stem, estimates, plot, width = NA, height = NA, publish = 
   }
   tryCatch(save_pdf(cairo_pdf), error = function(e) save_pdf(pdf))
   replace_file(tmp_pdf, pdf_path)
-  if (!is.null(publish)) {
-    file.copy(pdf_path, publish, overwrite = TRUE)
-  }
   print(plot)
-}
-
-paper_pdf <- function(stem) file.path(paper_root, "figs", paste0(stem, ".pdf"))
-si_pdf <- function(stem) file.path(paper_root, "sn-figs", paste0(stem, ".pdf"))
-
-publish_tex <- function(stem) {
-  dest <- file.path(paper_root, "sn-tables", paste0(stem, ".tex"))
-  file.copy(file.path(tab_dir, paste0(stem, ".tex")), dest, overwrite = TRUE)
 }
 ```
 
@@ -548,7 +537,7 @@ estimates_fig1 <- bind_rows(
 )
 ```
 
-💡 The primary estimand, written out rather than only inside the helper. Video fixed effects; standard errors clustered by respondent. Wave 1, emotionally manipulative political videos.
+💡 The primary estimand, written out 'by hand'. Video fixed effects; standard errors clustered by respondent. Wave 1, emotionally manipulative political videos.
 
 ```r
 feols(videoLikep1r ~ workshop_Treatment | video, cluster = ~ID)
@@ -649,7 +638,7 @@ write_fig(
   plot = fig1,
   width = 12,
   height = 5,
-  publish = paper_pdf("fig_1_engagement")
+  dir = fig_dir
 )
 ```
 
@@ -781,12 +770,30 @@ fig2_x_lims <- estimates_fig2 |>
     xmax = hi + pad
   )
 
+# Free-x labels are centered on ticks. Ticks near a panel edge spill into the
+# next facet (Share's rightmost label ran into Bookmark's leftmost). Keep
+# breaks inset from each edge; always retain a zero tick when it is in range.
+fig2_x_breaks <- function(lims) {
+  candidates <- pretty(lims, n = 5)
+  span <- diff(range(lims))
+  inset <- 0.14 * span
+  inside <- candidates > (lims[1] + inset) & candidates < (lims[2] - inset)
+  is_zero <- abs(candidates) < 1e-8 & candidates >= lims[1] & candidates <= lims[2]
+  kept <- sort(unique(candidates[inside | is_zero]))
+  if (length(kept) < 2) {
+    candidates <- pretty(lims, n = 3)
+    kept <- sort(unique(candidates[candidates >= lims[1] & candidates <= lims[2]]))
+  }
+  kept
+}
+
 # Unnamed list matches nested columns left-to-right (fig2_outcomes order).
 fig2_x_scales <- lapply(fig2_outcomes, function(y) {
   r <- fig2_x_lims[as.character(fig2_x_lims$outcome) == y, ]
   scale_x_continuous(
     limits = c(r$xmin, r$xmax),
-    expand = expansion(mult = 0)
+    expand = expansion(mult = 0),
+    breaks = fig2_x_breaks
   )
 })
 
@@ -820,9 +827,10 @@ fig2 <- estimates_fig2 |>
   theme_bw(base_size = 10) +
   theme(
     legend.position = "bottom",
-    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 9),
+    axis.text.x = element_text(angle = 0, vjust = 0.5, hjust = 0.5, size = 8),
     axis.text.y = element_text(size = 9),
-    strip.text = element_text(size = 10)
+    strip.text = element_text(size = 10),
+    panel.spacing.x = unit(14, "pt")
   )
 
 write_fig(
@@ -831,7 +839,7 @@ write_fig(
   plot = fig2,
   width = 12,
   height = 8,
-  publish = paper_pdf("fig_2_party_partisanship")
+  dir = fig_dir
 )
 ```
 
@@ -1271,7 +1279,6 @@ tex_s3 <- c(
   "\\end{table}"
 )
 writeLines(tex_s3, file.path(tab_dir, "tab_s3_cohens_kappa.tex"))
-publish_tex("tab_s3_cohens_kappa")
 knitr::kable(
   tibble(
     Anger = round(kappa_s3[["anger"]], 3),
@@ -1347,7 +1354,6 @@ tex_s4 <- c(
   "\\end{table}"
 )
 writeLines(tex_s4, file.path(tab_dir, "tab_s4_strategy_by_party.tex"))
-publish_tex("tab_s4_strategy_by_party")
 knitr::kable(
   s4_tab |>
     select(
@@ -1407,7 +1413,7 @@ write_fig(
   plot = fig_s2,
   width = 8,
   height = 4,
-  publish = si_pdf("fig_s2_platform_comments")
+  dir = si_fig_dir
 )
 ```
 
@@ -1507,7 +1513,7 @@ write_fig(
   plot = fig_s3_outcome_levels_treat_control,
   width = 12,
   height = 5.5,
-  publish = si_pdf("fig_s3_outcome_levels_treat_control")
+  dir = si_fig_dir
 )
 ```
 
@@ -1573,7 +1579,7 @@ write_fig(
   plot = fig_s3,
   width = 12,
   height = 3.5,
-  publish = si_pdf("fig_s4_by_strategy")
+  dir = si_fig_dir
 )
 ```
 
@@ -1657,7 +1663,7 @@ write_fig(
   plot = fig_s4_type_treat_did,
   width = 12,
   height = 5.5,
-  publish = si_pdf("fig_s5_type_treat_did")
+  dir = si_fig_dir
 )
 ```
 
@@ -1735,7 +1741,6 @@ write_type_contrast <- function(models, dest_stem, caption, label, html_caption 
     label = label,
     stars = texreg_stars
   )
-  publish_tex(dest_stem)
   texreg::htmlreg(
     models,
     digits = 3,
@@ -1824,7 +1829,7 @@ write_fig(
   plot = fig_s6,
   width = 7,
   height = 12,
-  publish = si_pdf("fig_s6_attrition_covariates")
+  dir = si_fig_dir
 )
 ```
 
@@ -1904,7 +1909,6 @@ tex <- c(
   "\\end{table}"
 )
 writeLines(tex, file.path(tab_dir, "tab_s9_attrition.tex"))
-publish_tex("tab_s9_attrition")
 knitr::kable(
   attrit_rows,
   digits = 2,
@@ -1955,7 +1959,7 @@ write_fig(
   plot = fig_s7,
   width = 7,
   height = 12,
-  publish = si_pdf("fig_s7_attrition_interaction")
+  dir = si_fig_dir
 )
 ```
 
@@ -2019,7 +2023,7 @@ write_fig(
   plot = fig_s8,
   width = 12,
   height = 3.5,
-  publish = si_pdf("fig_s8_fig1_nonattriters")
+  dir = si_fig_dir
 )
 ```
 
@@ -2094,7 +2098,7 @@ write_fig(
   plot = fig_s9,
   width = 12,
   height = 3.5,
-  publish = si_pdf("fig_s9_longterm_no_repeat")
+  dir = si_fig_dir
 )
 ```
 
@@ -2191,7 +2195,6 @@ write_afd_3way <- function(models, dest_stem, caption, label, html_caption = cap
     label = label,
     stars = texreg_stars
   )
-  publish_tex(dest_stem)
   texreg::htmlreg(
     models,
     digits = 3,
@@ -2286,7 +2289,6 @@ texreg::texreg(
   label = "tab:afd_maintained_support",
   stars = texreg_stars
 )
-publish_tex("tab_s12_afd_identification")
 texreg::htmlreg(
   models_s12,
   digits = 3,
@@ -2375,7 +2377,7 @@ write_fig(
   plot = fig_s10,
   width = 7,
   height = 9,
-  publish = si_pdf("fig_s10_pid_by_prior")
+  dir = si_fig_dir
 )
 ```
 
@@ -2503,7 +2505,7 @@ write_fig(
   plot = fig_s11,
   width = 9,
   height = 7,
-  publish = si_pdf("fig_s11_pid_transitions")
+  dir = si_fig_dir
 )
 ```
 
@@ -2530,7 +2532,7 @@ write_fig(
   plot = fig_s12,
   width = 9,
   height = 7,
-  publish = si_pdf("fig_s12_pid_transitions_treat")
+  dir = si_fig_dir
 )
 ```
 
@@ -2557,7 +2559,7 @@ write_fig(
   plot = fig_s13,
   width = 9,
   height = 7,
-  publish = si_pdf("fig_s13_pid_transitions_control")
+  dir = si_fig_dir
 )
 ```
 
@@ -2693,7 +2695,7 @@ write_fig(
   plot = fig_s14,
   width = 10,
   height = 8,
-  publish = si_pdf("fig_s14_ptv")
+  dir = si_fig_dir
 )
 ```
 
@@ -2746,7 +2748,6 @@ texreg::texreg(
   label = "tab:pap_h1a_engage_emotional",
   stars = texreg_stars
 )
-publish_tex("tab_s13_pap_h1a")
 texreg::htmlreg(
   models_h1,
   digits = 3,
@@ -2762,7 +2763,7 @@ texreg::htmlreg(
 <!-- rep: id="tab_s14_outcome_cors" type="table" paper="Table S14" -->
 ## Table S14. Pairwise outcome correlations
 
-Pairwise outcome correlations on emotionally manipulative political videos, Wave 1. Cells expanded to three rows ($r_T$, $r_C$, $\Delta$) with a rule after each outcome group. Compiled SI Table S15 (PAP reconciliation) is written in the SI `.tex`, not here.
+Pairwise outcome correlations on emotionally manipulative political videos, Wave 1. Cells expanded to three rows ($r_T$, $r_C$, $\Delta$) with a rule after each outcome group. Compiled SI Table S15 (PAP reconciliation) is written in the SI `.tex`.
 
 ```{r}
 #| label: tab-s14-analysis
@@ -2937,7 +2938,6 @@ tex <- c(
   "\\end{table}"
 )
 writeLines(tex, file.path(tab_dir, "tab_s14_outcome_cors.tex"))
-publish_tex("tab_s14_outcome_cors")
 knitr::kable(
   html_mat,
   caption = "Table S14. Pairwise outcome correlations (emotionally manipulative political videos; video-respondent rows, Wave 1). Groups of three rows: r_T, r_C, Delta. Correlations are symmetric and both triangles are shown. Stars on Delta are not: each star is a clustered regression of one standardized outcome on the other interacted with treatment.",
@@ -2955,11 +2955,11 @@ Stem: `fig_s15_fig1_nofe`. Figure 1 companion without video fixed effects (clust
 ```{r}
 #| label: fig-s15-analysis
 
-s16_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
+s15_outcomes <- c(l_outcomegroups$main, l_outcomegroups[["_other"]])
 
-estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
+estimates_s15 <- lapply(c("wave_9", "wave_10"), function(D) {
   df <- datasets[[D]]
-  lapply(s16_outcomes, function(Y) {
+  lapply(s15_outcomes, function(Y) {
     lapply(unique(as.character(df$strategy_2)), function(S) {
       feols(
         as.formula(paste(v_outcomes[[Y]], "~ workshop_Treatment")),
@@ -2985,11 +2985,11 @@ estimates_s16 <- lapply(c("wave_9", "wave_10"), function(D) {
 #| fig-height: 5
 #| fig-cap: "Fig. S15. Main engagement patterns without video fixed effects (respondent-clustered standard errors retained). Companion to the manuscript Figure 1 specification."
 
-fig_s16 <- estimates_s16 |>
+fig_s15 <- estimates_s15 |>
   mutate(
     horizon = factor(horizon, levels = horizon_wave_levels),
     strategy = factor(as.character(strategy), levels = rev(strategy_order_article)),
-    outcome = factor(outcome, levels = s16_outcomes),
+    outcome = factor(outcome, levels = s15_outcomes),
     super = outcome_super(outcome),
     strat_color = as.character(strategy)
   ) |>
@@ -2998,7 +2998,7 @@ fig_s16 <- estimates_s16 |>
   geom_errorbar(aes(xmin = conf.low, xmax = conf.high), width = 0.2) +
   geom_point(size = 1.8) +
   facet_nested(horizon ~ super + outcome, scales = "free_x") +
-  facetted_pos_scales(x = shared_binary_x_scales(estimates_s16, s16_outcomes)) +
+  facetted_pos_scales(x = shared_binary_x_scales(estimates_s15, s15_outcomes)) +
   scale_color_manual(values = strategy_color_values, guide = "none") +
   labs(
     x = "Average treatment effect",
@@ -3016,11 +3016,11 @@ fig_s16 <- estimates_s16 |>
 
 write_fig(
   stem = "fig_s15_fig1_nofe",
-  estimates = estimates_s16,
-  plot = fig_s16,
+  estimates = estimates_s15,
+  plot = fig_s15,
   width = 12,
   height = 5,
-  publish = si_pdf("fig_s15_fig1_nofe")
+  dir = si_fig_dir
 )
 ```
 
@@ -3083,7 +3083,7 @@ cat(
 
 key_numbers <- c(
   "% Generated by 2_analysis.qmd (quoted-sentences). Do not edit by hand.",
-  "% \\input{outputs/key_numbers.tex}",
+  "% \\input{assets/key_numbers.tex}",
   sprintf("\\newcommand{\\bookmarkpp}{%s}", sprintf("%.1f", 100 * bk)),
   sprintf("\\newcommand{\\ptvAfdIdWone}{%s}", sprintf("%+.3f", p1$estimate)),
   sprintf("\\newcommand{\\ptvAfdIdWoneP}{%s}", sprintf("%.3f", p1$p.value)),
@@ -3101,8 +3101,7 @@ key_numbers <- c(
   sprintf("\\newcommand{\\waldLikeP}{%s}", sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Like" & fig2_party_wald$sample == "All"])),
   sprintf("\\newcommand{\\waldReportP}{%s}", sprintf("%.3f", fig2_party_wald$p.value[fig2_party_wald$outcome == "Report" & fig2_party_wald$sample == "All"]))
 )
-writeLines(key_numbers, "outputs/key_numbers.tex")
-writeLines(key_numbers, file.path(paper_root, "outputs", "key_numbers.tex"))
+writeLines(key_numbers, "assets/key_numbers.tex")
 ```
 
 # Export
